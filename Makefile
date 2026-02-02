@@ -3,7 +3,7 @@
 all: lint typecheck test
 
 install-cli:
-	cargo install --path ../cli
+	cargo install syster-cli
 
 install:
 	pip install .

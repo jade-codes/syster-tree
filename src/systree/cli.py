@@ -26,7 +26,7 @@ def find_cli() -> str:
     if binary is None:
         raise CliNotFoundError(
             "Syster CLI not found on PATH. "
-            "Install with: cargo install --path ../cli"
+            "Install with: cargo install syster-cli"
         )
     return binary
 

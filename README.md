@@ -18,6 +18,12 @@ pip install -e ".[dev]"
 ### Installing the CLI
 
 ```bash
+cargo install syster-cli
+```
+
+Or via make:
+
+```bash
 make install-cli
 ```
 
