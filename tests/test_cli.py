@@ -1115,3 +1115,146 @@ package VehicleModel {
         assert "part-test-67890" in roundtrip_xmi, (
             f"Part ID not preserved. Got:\n{roundtrip_xmi}"
         )
+
+    def test_export_xmi_with_stdlib_real_reference(
+        self, cli_available: bool, tmp_path: Path
+    ) -> None:
+        """Test XMI export with a model referencing stdlib Real type.
+
+        Run with:
+            pytest tests/test_cli.py -k test_export_xmi_with_stdlib_real_reference -v -s
+        """
+        if not cli_available:
+            pytest.skip("Syster CLI not available")
+
+        # Create a SysML file that references Real from the stdlib
+        sysml_content = """\
+package TestModel {
+    attribute def Temperature :> ScalarValues::Real;
+    part def Sensor {
+        attribute temp : Temperature;
+    }
+}"""
+        sysml_path = tmp_path / "model.sysml"
+        sysml_path.write_text(sysml_content)
+
+        # Export with stdlib
+        xmi = export_xmi(sysml_path, stdlib=True)
+
+        # Print for inspection
+        print(f"=== XMI Output ===\n{xmi}\n=== End XMI ===")
+
+        # Verify the export contains our model elements
+        assert "TestModel" in xmi, "Should contain TestModel package"
+        assert "Temperature" in xmi, "Should contain Temperature attribute def"
+        assert "Sensor" in xmi, "Should contain Sensor part def"
+        assert "temp" in xmi, "Should contain temp attribute"
+
+        # Verify it's valid XMI structure
+        assert "xmi:XMI" in xmi, "Should be valid XMI with namespace"
+        assert "xmlns:sysml" in xmi, "Should have SysML namespace"
+
+    def test_export_jsonld_with_stdlib_real_reference(
+        self, cli_available: bool, tmp_path: Path
+    ) -> None:
+        """Test JSON-LD export with a model referencing stdlib Real type.
+
+        Run with:
+            pytest tests/test_cli.py -k test_export_jsonld_with_stdlib_real_reference -v -s
+        """
+        if not cli_available:
+            pytest.skip("Syster CLI not available")
+
+        # Create a SysML file that references Real from the stdlib
+        sysml_content = """\
+package SensorSystem {
+    import ScalarValues::*;
+    
+    attribute def Voltage :> Real;
+    
+    part def VoltageSensor {
+        attribute reading : Voltage;
+        attribute maxVoltage : Voltage;
+    }
+}"""
+        sysml_path = tmp_path / "model.sysml"
+        sysml_path.write_text(sysml_content)
+
+        # Export with stdlib
+        jsonld = export_jsonld(sysml_path, stdlib=True)
+
+        # Print for inspection
+        import json
+        print(f"=== JSON-LD Output ===\n{json.dumps(jsonld, indent=2)}\n=== End JSON-LD ===")
+
+        # JSON-LD can be list or dict with @graph
+        elements = jsonld if isinstance(jsonld, list) else jsonld.get("@graph", [jsonld])
+
+        # Build lookup by name
+        by_name = {e["name"]: e for e in elements if isinstance(e, dict) and "name" in e}
+
+        # Verify our model elements are present
+        assert "SensorSystem" in by_name, "Should contain SensorSystem package"
+        assert "Voltage" in by_name, "Should contain Voltage attribute def"
+        assert "VoltageSensor" in by_name, "Should contain VoltageSensor part def"
+
+    def test_export_kpar_with_stdlib_real_reference(
+        self, cli_available: bool, tmp_path: Path
+    ) -> None:
+        """Test KPAR export with a model referencing stdlib Real type.
+
+        Run with:
+            pytest tests/test_cli.py -k test_export_kpar_with_stdlib_real_reference -v -s
+        """
+        if not cli_available:
+            pytest.skip("Syster CLI not available")
+
+        import io
+        import zipfile
+
+        # Create a SysML file that references Real from the stdlib
+        sysml_content = """\
+package VehicleSystem {
+    import ScalarValues::*;
+    
+    attribute def Speed :> Real;
+    attribute def Mass :> Real;
+    
+    part def Vehicle {
+        attribute currentSpeed : Speed;
+        attribute totalMass : Mass;
+    }
+    
+    part def Car :> Vehicle {
+        attribute numDoors : Integer;
+    }
+}"""
+        sysml_path = tmp_path / "model.sysml"
+        sysml_path.write_text(sysml_content)
+
+        # Export with stdlib
+        kpar_bytes = export_kpar(sysml_path, stdlib=True)
+
+        # Verify it's a valid ZIP file
+        assert kpar_bytes[:2] == b"PK", "Should be a ZIP file (PK magic)"
+
+        # Open and inspect ZIP contents
+        with zipfile.ZipFile(io.BytesIO(kpar_bytes), "r") as zf:
+            names = zf.namelist()
+            print(f"=== KPAR Archive Contents ===")
+            for name in names:
+                info = zf.getinfo(name)
+                print(f"  - {name} ({info.file_size} bytes)")
+            print("=== End KPAR ===")
+
+            # Should have at least one file in the archive
+            assert len(names) > 0, "Should have files in archive"
+
+            # Find and verify XMI content
+            xmi_files = [n for n in names if n.endswith(".xmi")]
+            assert len(xmi_files) >= 1, f"No XMI files in KPAR: {names}"
+
+            for xmi_name in xmi_files:
+                content = zf.read(xmi_name).decode("utf-8")
+                # Verify model data in XMI
+                assert "VehicleSystem" in content, "Should contain VehicleSystem package"

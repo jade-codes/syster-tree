@@ -3,6 +3,7 @@
 from systree.cli import (
     analyze,
     decompile,
+    download_stdlib,
     export_jsonld,
     export_kpar,
     export_xmi,
@@ -29,6 +30,8 @@ __all__ = [
     "import_symbols",
     "import_export",
     "decompile",
+    # Stdlib
+    "download_stdlib",
     # Models
     "AnalysisResult",
     "Symbol",

@@ -16,6 +16,104 @@ SUCCESS_PATTERN = re.compile(r"Analyzed (\d+) files?: (\d+) symbols?")
 IMPORT_PATTERN = re.compile(r"Imported (\d+) elements?, (\d+) relationships?")
 
 
+def _find_stdlib() -> Path | None:
+    """Find the SysML standard library.
+
+    Searches in order:
+    1. SYSML_STDLIB environment variable
+    2. User cache directory (~/.cache/systree/sysml.library) - downloaded stdlib
+    3. sysml.library in current directory
+    4. Relative to this package (for monorepo development)
+
+    Returns:
+        Path to stdlib directory, or None if not found.
+    """
+    import os
+
+    # 1. Environment variable
+    env_path = os.environ.get("SYSML_STDLIB")
+    if env_path:
+        p = Path(env_path)
+        if p.exists():
+            return p
+
+    # 2. User cache directory (downloaded stdlib - preferred)
+    cache_dir = Path.home() / ".cache" / "systree" / "sysml.library"
+    if cache_dir.exists():
+        return cache_dir
+
+    # 3. Current directory
+    cwd_path = Path.cwd() / "sysml.library"
+    if cwd_path.exists():
+        return cwd_path
+
+    # 4. Relative to package (monorepo layout: systree/src/systree/cli.py -> base/sysml.library)
+    package_dir = Path(__file__).parent  # systree/src/systree
+    monorepo_path = package_dir.parent.parent.parent / "base" / "sysml.library"
+    if monorepo_path.exists():
+        return monorepo_path
+
+    return None
+
+
+def download_stdlib(version: str = "2025-12") -> Path:
+    """Download the SysML v2 standard library from GitHub.
+
+    Args:
+        version: Release version tag (default: "2025-12").
+
+    Returns:
+        Path to the downloaded sysml.library directory.
+
+    Raises:
+        RuntimeError: If download fails.
+    """
+    import io
+    import urllib.request
+    import zipfile
+
+    cache_dir = Path.home() / ".cache" / "systree"
+    stdlib_dir = cache_dir / "sysml.library"
+
+    if stdlib_dir.exists():
+        return stdlib_dir
+
+    # Download from GitHub release
+    url = f"https://github.com/Systems-Modeling/SysML-v2-Release/archive/refs/tags/{version}.zip"
+
+    try:
+        print(f"Downloading SysML v2 standard library ({version})...")
+        with urllib.request.urlopen(url, timeout=60) as response:
+            zip_data = response.read()
+    except Exception as e:
+        raise RuntimeError(f"Failed to download stdlib from {url}: {e}") from e
+
+    # Extract sysml.library folder
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
+            # Find the sysml.library folder in the archive
+            prefix = f"SysML-v2-Release-{version}/sysml.library/"
+            for member in zf.namelist():
+                if member.startswith(prefix) and not member.endswith("/"):
+                    # Extract to cache_dir/sysml.library/...
+                    rel_path = member[len(prefix):]
+                    target = stdlib_dir / rel_path
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with zf.open(member) as src, open(target, "wb") as dst:
+                        dst.write(src.read())
+        print(f"Installed stdlib to {stdlib_dir}")
+    except Exception as e:
+        # Clean up partial extraction
+        if stdlib_dir.exists():
+            import shutil
+            shutil.rmtree(stdlib_dir)
+        raise RuntimeError(f"Failed to extract stdlib: {e}") from e
+
+    return stdlib_dir
+
+
 def find_cli() -> str:
     """Find the syster CLI binary.
 
@@ -49,7 +147,7 @@ def _run_cli(
         args: Additional CLI arguments.
         verbose: Enable verbose output.
         stdlib: Load standard library (default: True).
-        stdlib_path: Custom standard library path.
+        stdlib_path: Custom standard library path (auto-detected if None).
 
     Returns:
         CompletedProcess with stdout/stderr.
@@ -72,9 +170,15 @@ def _run_cli(
 
     if not stdlib:
         cmd.append("--no-stdlib")
-
-    if stdlib_path is not None:
+    elif stdlib_path is not None:
         cmd.extend(["--stdlib-path", str(stdlib_path)])
+    else:
+        # Auto-detect or download stdlib
+        detected = _find_stdlib()
+        if detected is None:
+            # Download from GitHub
+            detected = download_stdlib()
+        cmd.extend(["--stdlib-path", str(detected)])
 
     if args:
         cmd.extend(args)
