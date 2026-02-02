@@ -7,13 +7,14 @@ from systree.cli import (
     export_kpar,
     export_xmi,
     get_symbols,
+    import_export,
     import_file,
     import_symbols,
 )
 from systree.exceptions import AnalysisError, CliNotFoundError, SystreeError
 from systree.models import AnalysisResult, FileSymbols, Symbol
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     # Analysis functions
@@ -26,6 +27,7 @@ __all__ = [
     # Import functions
     "import_file",
     "import_symbols",
+    "import_export",
     "decompile",
     # Models
     "AnalysisResult",

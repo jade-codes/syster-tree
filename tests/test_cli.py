@@ -15,6 +15,7 @@ from systree.cli import (
     export_xmi,
     find_cli,
     get_symbols,
+    import_export,
     import_file,
     import_symbols,
 )
@@ -1082,3 +1083,35 @@ package VehicleModel {
         for name in ["VehicleModel", "Vehicle", "Engine"]:
             if name in original_names:
                 assert name in jsonld_names, f"Symbol '{name}' not found in JSON-LD"
+
+    def test_xmi_roundtrip_preserves_ids(
+        self, cli_available: bool, tmp_path: Path
+    ) -> None:
+        """Test XMI -> import_export -> XMI preserves element IDs."""
+        if not cli_available:
+            pytest.skip("Syster CLI not available")
+
+        # Create XMI with known IDs
+        original_xmi = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://www.omg.org/spec/XMI/20131001" xmlns:sysml="http://www.omg.org/spec/SysML/20230201">
+  <sysml:Package xmi:id="pkg-test-12345" name="TestPkg" qualifiedName="TestPkg">
+    <ownedMember>
+      <sysml:PartDefinition xmi:id="part-test-67890" name="Widget" qualifiedName="TestPkg::Widget"/>
+    </ownedMember>
+  </sysml:Package>
+</xmi:XMI>"""
+        xmi_path = tmp_path / "original.xmi"
+        xmi_path.write_text(original_xmi)
+
+        # Direct import -> export roundtrip
+        roundtrip_bytes = import_export(xmi_path, "xmi", stdlib=False)
+        roundtrip_xmi = roundtrip_bytes.decode("utf-8")
+
+        # Verify original IDs are preserved
+        assert "pkg-test-12345" in roundtrip_xmi, (
+            f"Package ID not preserved. Got:\n{roundtrip_xmi}"
+        )
+        assert "part-test-67890" in roundtrip_xmi, (
+            f"Part ID not preserved. Got:\n{roundtrip_xmi}"
+        )

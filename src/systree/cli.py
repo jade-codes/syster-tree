@@ -503,3 +503,65 @@ def decompile(
         stdlib_path=stdlib_path,
     )
     return result.stdout
+
+
+def import_export(
+    path: str | Path,
+    format: str = "xmi",
+    *,
+    stdlib: bool = True,
+    stdlib_path: str | Path | None = None,
+) -> bytes:
+    """Import interchange file and re-export, preserving element IDs.
+
+    This is the direct roundtrip: import XMI/KPAR/JSON-LD into workspace,
+    then export back to the specified format. Element IDs are preserved.
+
+    Args:
+        path: Path to interchange file (XMI, KPAR, or JSON-LD).
+        format: Output format - "xmi", "kpar", or "jsonld" (default: "xmi").
+        stdlib: Load standard library (default: True).
+        stdlib_path: Custom standard library path.
+
+    Returns:
+        Exported model as bytes.
+
+    Raises:
+        FileNotFoundError: If the input path doesn't exist.
+        CliNotFoundError: If the syster CLI is not found.
+        AnalysisError: If import or export fails.
+    """
+    input_path = Path(path)
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input path does not exist: {path}")
+
+    binary = find_cli()
+
+    cmd = [binary]
+
+    if not stdlib:
+        cmd.append("--no-stdlib")
+
+    if stdlib_path is not None:
+        cmd.extend(["--stdlib-path", str(stdlib_path)])
+
+    cmd.extend(["--import-workspace", "--export", format])
+    cmd.append(str(input_path.resolve()))
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            check=False,
+        )
+    except OSError as e:
+        raise CliNotFoundError(f"Failed to execute syster CLI: {e}") from e
+
+    if result.returncode != 0:
+        error_message = result.stderr.decode(errors="replace").strip()
+        raise AnalysisError(
+            f"Import/export failed with exit code {result.returncode}: {error_message}",
+            stderr=error_message,
+        )
+
+    return result.stdout

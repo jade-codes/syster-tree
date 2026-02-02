@@ -17,6 +17,8 @@ pip install -e ".[dev]"
 
 ### Installing the CLI
 
+Requires syster-cli v0.2.3-alpha or later:
+
 ```bash
 cargo install syster-cli
 ```
@@ -82,7 +84,7 @@ with open("model.kpar", "wb") as f:
 ### Import Interchange Files
 
 ```python
-from systree import import_file, import_symbols, decompile
+from systree import import_file, import_symbols, import_export, decompile
 
 # Import and validate XMI/KPAR/JSON-LD
 result = import_file("model.xmi")
@@ -93,6 +95,9 @@ file_symbols = import_symbols("model.xmi")
 for fs in file_symbols:
     for sym in fs.symbols:
         print(f"  {sym.kind}: {sym.qualified_name}")
+
+# Direct roundtrip: import -> export (preserves element IDs)
+roundtrip_xmi = import_export("model.xmi", "xmi")
 
 # Decompile back to SysML v2 text
 sysml_source = decompile("model.xmi")
@@ -145,6 +150,10 @@ Import and validate an interchange file (XMI, KPAR, or JSON-LD).
 ### `import_symbols(path, *, stdlib=True, stdlib_path=None) -> list[FileSymbols]`
 
 Import interchange file and extract typed symbol objects.
+
+### `import_export(path, format="xmi", *, stdlib=True, stdlib_path=None) -> bytes`
+
+Import interchange file and re-export, preserving element IDs. Direct roundtrip without intermediate files.
 
 ### `decompile(path, *, stdlib=True, stdlib_path=None) -> str`
 
