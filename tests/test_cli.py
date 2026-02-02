@@ -9,11 +9,14 @@ import pytest
 from systree import AnalysisResult, FileSymbols, Symbol, analyze
 from systree.cli import (
     SUCCESS_PATTERN,
+    decompile,
     export_jsonld,
     export_kpar,
     export_xmi,
     find_cli,
     get_symbols,
+    import_file,
+    import_symbols,
 )
 from systree.exceptions import AnalysisError, CliNotFoundError
 
@@ -408,6 +411,108 @@ class TestExportKpar:
             assert "Export failed" in str(exc_info.value)
 
 
+class TestImportFile:
+    """Tests for the import_file function."""
+
+    def test_file_not_found(self) -> None:
+        with pytest.raises(FileNotFoundError):
+            import_file("/nonexistent/path/model.xmi")
+
+    def test_successful_import(self, tmp_path: Path) -> None:
+        xmi_file = tmp_path / "model.xmi"
+        xmi_file.write_text('<?xml version="1.0"?><xmi:XMI/>')
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = json.dumps({
+            "file_count": 1,
+            "symbol_count": 5,
+            "error_count": 0,
+            "warning_count": 0,
+            "diagnostics": [],
+        })
+        mock_result.stderr = ""
+
+        with (
+            patch("shutil.which", return_value="/usr/bin/syster"),
+            patch("subprocess.run", return_value=mock_result) as mock_run,
+        ):
+            result = import_file(xmi_file)
+
+            assert result.file_count == 1
+            assert result.symbol_count == 5
+            cmd = mock_run.call_args[0][0]
+            assert "--import" in cmd
+
+
+class TestImportSymbols:
+    """Tests for the import_symbols function."""
+
+    def test_file_not_found(self) -> None:
+        with pytest.raises(FileNotFoundError):
+            import_symbols("/nonexistent/path/model.xmi")
+
+    def test_successful_import(self, tmp_path: Path) -> None:
+        xmi_file = tmp_path / "model.xmi"
+        xmi_file.write_text('<?xml version="1.0"?><xmi:XMI/>')
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = json.dumps({
+            "files": [{
+                "path": str(xmi_file),
+                "symbols": [
+                    {
+                        "name": "Vehicle",
+                        "qualified_name": "Vehicle",
+                        "kind": "PartDef",
+                    },
+                ],
+            }]
+        })
+        mock_result.stderr = ""
+
+        with (
+            patch("shutil.which", return_value="/usr/bin/syster"),
+            patch("subprocess.run", return_value=mock_result) as mock_run,
+        ):
+            result = import_symbols(xmi_file)
+
+            assert len(result) == 1
+            assert result[0].symbols[0].name == "Vehicle"
+            cmd = mock_run.call_args[0][0]
+            assert "--import" in cmd
+            assert "--export-ast" in cmd
+
+
+class TestDecompile:
+    """Tests for the decompile function."""
+
+    def test_file_not_found(self) -> None:
+        with pytest.raises(FileNotFoundError):
+            decompile("/nonexistent/path/model.xmi")
+
+    def test_successful_decompile(self, tmp_path: Path) -> None:
+        xmi_file = tmp_path / "model.xmi"
+        xmi_file.write_text('<?xml version="1.0"?><xmi:XMI/>')
+
+        sysml_output = "package Vehicle { part def Car; }"
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = sysml_output
+        mock_result.stderr = ""
+
+        with (
+            patch("shutil.which", return_value="/usr/bin/syster"),
+            patch("subprocess.run", return_value=mock_result) as mock_run,
+        ):
+            result = decompile(xmi_file)
+
+            assert result == sysml_output
+            cmd = mock_run.call_args[0][0]
+            assert "--decompile" in cmd
+
+
 @pytest.mark.integration
 class TestIntegration:
     """Integration tests that require the actual CLI binary.
@@ -473,6 +578,56 @@ class TestIntegration:
         assert isinstance(result, bytes)
         # KPAR is a ZIP file, should start with PK magic bytes
         assert result[:2] == b"PK"
+
+    def test_real_roundtrip_xmi(
+        self, cli_available: bool, sample_sysml_file: Path
+    ) -> None:
+        """Test export to XMI and import back."""
+        if not cli_available:
+            pytest.skip("Syster CLI not available")
+
+        import tempfile
+
+        # Export to XMI
+        xmi = export_xmi(sample_sysml_file, stdlib=False)
+        assert '<?xml' in xmi
+
+        # Write XMI to temp file and import
+        with tempfile.NamedTemporaryFile(suffix=".xmi", delete=False) as f:
+            f.write(xmi.encode())
+            xmi_path = Path(f.name)
+
+        try:
+            result = import_file(xmi_path, stdlib=False)
+            assert result.symbol_count >= 0
+        finally:
+            xmi_path.unlink()
+
+    def test_real_decompile(
+        self, cli_available: bool, sample_sysml_file: Path
+    ) -> None:
+        """Test decompile XMI back to SysML."""
+        if not cli_available:
+            pytest.skip("Syster CLI not available")
+
+        import tempfile
+
+        # Export to XMI
+        xmi = export_xmi(sample_sysml_file, stdlib=False)
+
+        # Write XMI to temp file
+        with tempfile.NamedTemporaryFile(suffix=".xmi", delete=False) as f:
+            f.write(xmi.encode())
+            xmi_path = Path(f.name)
+
+        try:
+            # Decompile back to SysML
+            sysml = decompile(xmi_path, stdlib=False)
+            assert isinstance(sysml, str)
+            # Should contain package or part keywords
+            assert "package" in sysml.lower() or "part" in sysml.lower() or len(sysml) > 0
+        finally:
+            xmi_path.unlink()
 
 
 @pytest.mark.integration

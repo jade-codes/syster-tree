@@ -12,6 +12,9 @@ from systree.models import AnalysisResult, FileSymbols, Symbol
 # Pattern to match the success output: "✓ Analyzed N files: M symbols, W warnings"
 SUCCESS_PATTERN = re.compile(r"Analyzed (\d+) files?: (\d+) symbols?")
 
+# Pattern to match import output: "✓ Imported N elements, M relationships"
+IMPORT_PATTERN = re.compile(r"Imported (\d+) elements?, (\d+) relationships?")
+
 
 def find_cli() -> str:
     """Find the syster CLI binary.
@@ -343,4 +346,160 @@ def export_kpar(
             stderr=error_message,
         )
 
+    return result.stdout
+
+
+def import_file(
+    path: str | Path,
+    *,
+    stdlib: bool = True,
+    stdlib_path: str | Path | None = None,
+) -> AnalysisResult:
+    """Import and validate an interchange file (XMI, KPAR, or JSON-LD).
+
+    Args:
+        path: Path to interchange file to import.
+        stdlib: Load standard library (default: True).
+        stdlib_path: Custom standard library path.
+
+    Returns:
+        AnalysisResult with validation results.
+
+    Raises:
+        FileNotFoundError: If the input path doesn't exist.
+        CliNotFoundError: If the syster CLI is not found.
+        AnalysisError: If import fails.
+    """
+    result = _run_cli(
+        path,
+        args=["--import", "--json"],
+        stdlib=stdlib,
+        stdlib_path=stdlib_path,
+    )
+
+    output = result.stdout
+
+    try:
+        data = json.loads(output)
+        return AnalysisResult(
+            file_count=data.get("file_count", 1),
+            symbol_count=data.get("symbol_count", 0),
+            error_count=data.get("error_count", 0),
+            warning_count=data.get("warning_count", 0),
+            diagnostics=data.get("diagnostics", []),
+        )
+    except json.JSONDecodeError:
+        pass
+
+    match = SUCCESS_PATTERN.search(output)
+    if match:
+        return AnalysisResult(
+            file_count=int(match.group(1)),
+            symbol_count=int(match.group(2)),
+        )
+
+    # Try import pattern
+    match = IMPORT_PATTERN.search(output)
+    if match:
+        return AnalysisResult(
+            file_count=1,
+            symbol_count=int(match.group(1)),  # elements as symbols
+        )
+
+    raise AnalysisError(
+        f"Could not parse CLI output: {output}",
+        stderr=result.stderr,
+    )
+
+
+def import_symbols(
+    path: str | Path,
+    *,
+    stdlib: bool = True,
+    stdlib_path: str | Path | None = None,
+) -> list[FileSymbols]:
+    """Import interchange file and extract symbols.
+
+    Args:
+        path: Path to interchange file (XMI, KPAR, or JSON-LD).
+        stdlib: Load standard library (default: True).
+        stdlib_path: Custom standard library path.
+
+    Returns:
+        List of FileSymbols with extracted symbols.
+
+    Raises:
+        FileNotFoundError: If the input path doesn't exist.
+        CliNotFoundError: If the syster CLI is not found.
+        AnalysisError: If import fails.
+    """
+    result = _run_cli(
+        path,
+        args=["--import", "--export-ast"],
+        stdlib=stdlib,
+        stdlib_path=stdlib_path,
+    )
+
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        raise AnalysisError(
+            f"Failed to parse AST JSON: {e}",
+            stderr=result.stderr,
+        ) from e
+
+    file_symbols_list: list[FileSymbols] = []
+
+    files = data if isinstance(data, list) else data.get("files", [data])
+    for file_data in files:
+        file_path = file_data.get("file", file_data.get("path", "unknown"))
+        symbols: list[Symbol] = []
+
+        for sym in file_data.get("symbols", []):
+            symbols.append(
+                Symbol(
+                    name=sym.get("name", ""),
+                    qualified_name=sym.get("qualified_name", sym.get("name", "")),
+                    kind=sym.get("kind", "Unknown"),
+                    file=file_path,
+                    start_line=sym.get("start_line"),
+                    start_col=sym.get("start_col"),
+                    end_line=sym.get("end_line"),
+                    end_col=sym.get("end_col"),
+                    supertypes=sym.get("supertypes", []),
+                )
+            )
+
+        file_symbols_list.append(FileSymbols(path=file_path, symbols=symbols))
+
+    return file_symbols_list
+
+
+def decompile(
+    path: str | Path,
+    *,
+    stdlib: bool = True,
+    stdlib_path: str | Path | None = None,
+) -> str:
+    """Decompile interchange file back to SysML v2 text.
+
+    Args:
+        path: Path to interchange file (XMI, KPAR, or JSON-LD).
+        stdlib: Load standard library (default: True).
+        stdlib_path: Custom standard library path.
+
+    Returns:
+        SysML v2 source code as string.
+
+    Raises:
+        FileNotFoundError: If the input path doesn't exist.
+        CliNotFoundError: If the syster CLI is not found.
+        AnalysisError: If decompilation fails.
+    """
+    result = _run_cli(
+        path,
+        args=["--decompile"],
+        stdlib=stdlib,
+        stdlib_path=stdlib_path,
+    )
     return result.stdout
