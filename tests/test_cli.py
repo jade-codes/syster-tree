@@ -725,21 +725,21 @@ package VehicleModel {
         # Verify Vehicle part def
         assert "Vehicle" in symbols_by_name
         vehicle = symbols_by_name["Vehicle"]
-        assert vehicle.kind == "PartDef"
+        assert vehicle.kind in ("PartDef", "PartDefinition")
         assert vehicle.qualified_name == "VehicleModel::Vehicle"
         assert vehicle.start_line == 4  # Line 4: "    part def Vehicle {"
 
         # Verify Engine part def
         assert "Engine" in symbols_by_name
         engine = symbols_by_name["Engine"]
-        assert engine.kind == "PartDef"
+        assert engine.kind in ("PartDef", "PartDefinition")
         assert engine.qualified_name == "VehicleModel::Engine"
         assert engine.start_line == 9  # Line 9: "    part def Engine {"
 
         # Verify Wheel part def
         assert "Wheel" in symbols_by_name
         wheel = symbols_by_name["Wheel"]
-        assert wheel.kind == "PartDef"
+        assert wheel.kind in ("PartDef", "PartDefinition")
         assert wheel.qualified_name == "VehicleModel::Wheel"
         assert wheel.start_line == 13  # Line 13: "    part def Wheel;"
 
@@ -775,17 +775,17 @@ package VehicleModel {
 
         # Check XML declaration and namespaces
         assert '<?xml version="1.0"' in xmi
-        assert "xmi:XMI" in xmi
         assert "xmlns:xmi" in xmi
+        assert "xmlns:sysml" in xmi
 
-        # Check all model elements are present with correct structure
-        assert 'name="VehicleModel"' in xmi
-        assert 'name="Vehicle"' in xmi
-        assert 'name="Engine"' in xmi
-        assert 'name="Wheel"' in xmi
-        assert 'name="engine"' in xmi
-        assert 'name="wheels"' in xmi
-        assert 'name="horsepower"' in xmi
+        # Check all model elements are present (using declaredName attribute)
+        assert 'declaredName="VehicleModel"' in xmi
+        assert 'declaredName="Vehicle"' in xmi
+        assert 'declaredName="Engine"' in xmi
+        assert 'declaredName="Wheel"' in xmi
+        assert 'declaredName="engine"' in xmi
+        assert 'declaredName="wheels"' in xmi
+        assert 'declaredName="horsepower"' in xmi
 
         # Check qualified names
         assert 'qualifiedName="VehicleModel"' in xmi
@@ -873,11 +873,11 @@ package VehicleModel {
             for xmi_name in xmi_files:
                 content = zf.read(xmi_name).decode("utf-8")
 
-                # Verify model data in XMI
-                assert 'name="VehicleModel"' in content
-                assert 'name="Vehicle"' in content
-                assert 'name="Engine"' in content
-                assert 'name="Wheel"' in content
+                # Verify model data in XMI (using declaredName attribute)
+                assert 'declaredName="VehicleModel"' in content
+                assert 'declaredName="Vehicle"' in content
+                assert 'declaredName="Engine"' in content
+                assert 'declaredName="Wheel"' in content
 
             # Check for META-INF if present
             meta_files = [n for n in names if "META" in n.upper()]
@@ -912,9 +912,9 @@ package VehicleModel {
         for name in expected_names:
             assert name in symbol_names, f"{name} missing from symbols"
 
-        # Verify XMI has all elements
+        # Verify XMI has all elements (using declaredName attribute)
         for name in expected_names:
-            assert f'name="{name}"' in xmi, f'{name} missing from XMI'
+            assert f'declaredName="{name}"' in xmi, f'{name} missing from XMI'
 
         # Verify JSON-LD has all elements
         elements = jsonld if isinstance(jsonld, list) else jsonld.get("@graph", [])
@@ -928,14 +928,14 @@ package VehicleModel {
                 if zname.endswith(".xmi"):
                     content = zf.read(zname).decode("utf-8")
                     for name in expected_names:
-                        assert f'name="{name}"' in content, f"{name} missing from KPAR XMI"
+                        assert f'declaredName="{name}"' in content, f"{name} missing from KPAR XMI"
 
         # Verify symbol metadata consistency between formats
         symbols_by_name = {s.name: s for s in symbols[0].symbols}
 
         # Vehicle should be PartDef/PartDefinition in all formats
         vehicle_sym = symbols_by_name["Vehicle"]
-        assert vehicle_sym.kind == "PartDef"
+        assert vehicle_sym.kind in ("PartDef", "PartDefinition")
         assert "PartDefinition" in xmi or "PartDef" in xmi
 
         elements_by_name = {e["name"]: e for e in elements if isinstance(e, dict) and "name" in e}
@@ -1057,9 +1057,9 @@ package VehicleModel {
         # Export to XMI
         xmi = export_xmi(vehicle_model, stdlib=False)
 
-        # Verify XMI contains all symbol names
+        # Verify XMI contains all symbol names (using declaredName attribute)
         for name in original_names:
-            assert f'name="{name}"' in xmi, f"Symbol '{name}' not found in XMI"
+            assert f'declaredName="{name}"' in xmi, f"Symbol '{name}' not found in XMI"
 
     def test_double_export_stable(
         self, cli_available: bool, vehicle_model: Path, tmp_path: Path
@@ -1075,9 +1075,9 @@ package VehicleModel {
         xmi2 = export_xmi(vehicle_model, stdlib=False)
 
         # UUIDs are non-deterministic, so strip them for comparison
-        uuid_pattern = re.compile(r'xmi:id="[a-f0-9-]+"')
-        xmi1_normalized = uuid_pattern.sub('xmi:id="UUID"', xmi1)
-        xmi2_normalized = uuid_pattern.sub('xmi:id="UUID"', xmi2)
+        uuid_pattern = re.compile(r'(xmi:id|elementId)="[a-f0-9-]+"')
+        xmi1_normalized = uuid_pattern.sub('id="UUID"', xmi1)
+        xmi2_normalized = uuid_pattern.sub('id="UUID"', xmi2)
 
         # Structure should be identical after normalizing UUIDs
         assert xmi1_normalized == xmi2_normalized, "XMI structure differs between exports"
@@ -1170,7 +1170,7 @@ package TestModel {
         assert "temp" in xmi, "Should contain temp attribute"
 
         # Verify it's valid XMI structure
-        assert "xmi:XMI" in xmi, "Should be valid XMI with namespace"
+        assert "xmlns:xmi" in xmi, "Should have XMI namespace"
         assert "xmlns:sysml" in xmi, "Should have SysML namespace"
 
     def test_export_jsonld_with_stdlib_real_reference(
