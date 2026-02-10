@@ -1,0 +1,20 @@
+# Release workflow using reusable Python release template
+# See: https://github.com/jade-codes/syster-pipelines
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'  # Pre-releases like v0.1.0-alpha
+
+permissions:
+  contents: write
+  id-token: write  # For PyPI trusted publishing
+
+jobs:
+  python-release:
+    uses: jade-codes/syster-pipelines/.github/workflows/python-release.yml@main
+    secrets:
+      PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}

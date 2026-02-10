@@ -1,0 +1,17 @@
+# CI workflow using reusable Python CI template
+# See: https://github.com/jade-codes/syster-pipelines
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  python-ci:
+    uses: jade-codes/syster-pipelines/.github/workflows/python-ci.yml@main
+    with:
+      python-versions: '["3.10", "3.11", "3.12"]'
+      install-extras: 'dev'
