@@ -652,7 +652,7 @@ class TestIntegration:
     def test_real_export_ast(
         self, cli_available: bool, sample_sysml_file: Path
     ) -> None:
-        """Test export_ast returns raw JSON AST data."""
+        """Test export_ast returns raw JSON AST data with correct structure."""
         if not cli_available:
             pytest.skip("Syster CLI not available")
 
@@ -661,23 +661,175 @@ class TestIntegration:
         ast_data = export_ast(sample_sysml_file, stdlib=False)
 
         # Should be a dict with files key
-        assert isinstance(ast_data, dict)
-        assert "files" in ast_data
+        assert isinstance(ast_data, dict), "AST should be a dictionary"
+        assert "files" in ast_data, "AST should have 'files' key"
 
-        # Should have at least one file
+        # Should have exactly one file (we passed one file)
         files = ast_data["files"]
-        assert len(files) >= 1
+        assert isinstance(files, list), "'files' should be a list"
+        assert len(files) == 1, f"Expected 1 file, got {len(files)}"
 
-        # Each file should have path and symbols
-        for file_data in files:
-            assert "path" in file_data
-            assert "symbols" in file_data
+        # Verify file structure
+        file_data = files[0]
+        assert "path" in file_data, "File data should have 'path'"
+        assert "symbols" in file_data, "File data should have 'symbols'"
+        assert sample_sysml_file.name in file_data["path"], \
+            f"Path should contain filename: {file_data['path']}"
 
-            # Symbols should have expected structure
-            for sym in file_data["symbols"]:
-                assert "name" in sym
-                assert "kind" in sym
-                assert "qualified_name" in sym
+        # Verify symbols structure
+        symbols = file_data["symbols"]
+        assert isinstance(symbols, list), "'symbols' should be a list"
+        assert len(symbols) >= 1, "Should have at least one symbol"
+
+        # Build symbol lookup for verification
+        symbols_by_name = {sym["name"]: sym for sym in symbols}
+
+        # Verify each symbol has required fields
+        required_fields = ["name", "kind", "qualified_name"]
+        optional_fields = ["file", "start_line", "start_col", "end_line", "end_col", "supertypes"]
+
+        for sym in symbols:
+            # Check required fields exist and are non-empty
+            for field in required_fields:
+                assert field in sym, f"Symbol missing required field '{field}': {sym}"
+                assert sym[field], f"Symbol field '{field}' is empty: {sym}"
+
+            # Check optional fields have correct types if present
+            if "start_line" in sym and sym["start_line"] is not None:
+                assert isinstance(sym["start_line"], int), f"start_line should be int: {sym}"
+                assert sym["start_line"] >= 1, f"start_line should be >= 1: {sym}"
+            if "start_col" in sym and sym["start_col"] is not None:
+                assert isinstance(sym["start_col"], int), f"start_col should be int: {sym}"
+                assert sym["start_col"] >= 0, f"start_col should be >= 0: {sym}"
+            if "supertypes" in sym:
+                assert isinstance(sym["supertypes"], list), f"supertypes should be list: {sym}"
+
+            # Verify kind is a known SysML/KerML element type
+            valid_kinds = {
+                "Package", "PartDefinition", "PartDef", "PartUsage",
+                "AttributeDefinition", "AttributeDef", "AttributeUsage",
+                "ItemDefinition", "ItemDef", "ItemUsage",
+                "PortDefinition", "PortDef", "PortUsage",
+                "ConnectionDefinition", "ConnectionDef", "ConnectionUsage",
+                "InterfaceDefinition", "InterfaceDef", "InterfaceUsage",
+                "AllocationDefinition", "AllocationDef", "AllocationUsage",
+                "ActionDefinition", "ActionDef", "ActionUsage",
+                "StateDefinition", "StateDef", "StateUsage",
+                "ConstraintDefinition", "ConstraintDef", "ConstraintUsage",
+                "RequirementDefinition", "RequirementDef", "RequirementUsage",
+                "UseCaseDefinition", "UseCaseDef", "UseCaseUsage",
+                "Import", "Alias", "Comment", "Documentation",
+                "EnumerationDefinition", "EnumDef", "EnumerationUsage",
+                "OccurrenceDefinition", "OccurrenceDef", "OccurrenceUsage",
+                "Namespace", "Type", "Classifier", "Feature",
+                "Class", "DataType", "Struct", "Association",
+                "Specialization", "Redefinition", "Subsetting",
+                # Add more as needed
+            }
+            # Don't fail on unknown kinds, just warn (CLI may add new ones)
+            if sym["kind"] not in valid_kinds:
+                import warnings
+                warnings.warn(f"Unknown symbol kind: {sym['kind']}")
+
+        # Verify qualified_name format (should be :: separated)
+        for sym in symbols:
+            qn = sym["qualified_name"]
+            # Root-level symbols won't have ::, nested ones will
+            if "::" in qn:
+                parts = qn.split("::")
+                assert all(part for part in parts), f"Empty part in qualified_name: {qn}"
+
+        # Verify we got expected symbols from sample file (TestPackage with TestPart)
+        assert "TestPackage" in symbols_by_name or any(
+            "Package" in sym["kind"] for sym in symbols
+        ), "Should have a package symbol"
+
+    def test_real_export_ast_relationships(
+        self, cli_available: bool, tmp_path: Path
+    ) -> None:
+        """Test that export_ast correctly captures symbol relationships."""
+        if not cli_available:
+            pytest.skip("Syster CLI not available")
+
+        from systree import export_ast
+
+        # Create a model with explicit relationships
+        model = tmp_path / "relations.sysml"
+        model.write_text("""\
+package RelationsTest {
+    part def Vehicle {
+        part engine : Engine;
+        part wheels : Wheel[4];
+    }
+    
+    part def Engine {
+        attribute horsepower : Integer;
+    }
+    
+    part def Wheel;
+    
+    part def Car :> Vehicle {
+        part rearWheels : Wheel[2] :>> wheels;
+    }
+}
+""")
+
+        ast_data = export_ast(model, stdlib=False)
+
+        # Get symbols
+        files = ast_data["files"]
+        assert len(files) == 1
+        symbols = files[0]["symbols"]
+        symbols_by_name = {sym["name"]: sym for sym in symbols}
+
+        # Verify package exists
+        assert "RelationsTest" in symbols_by_name
+        assert symbols_by_name["RelationsTest"]["kind"] == "Package"
+
+        # Verify part definitions exist
+        for name in ["Vehicle", "Engine", "Wheel", "Car"]:
+            assert name in symbols_by_name, f"Missing part def: {name}"
+            assert "Definition" in symbols_by_name[name]["kind"] or \
+                   "Def" in symbols_by_name[name]["kind"], \
+                   f"{name} should be a definition"
+
+        # Verify part usages exist
+        for name in ["engine", "wheels", "horsepower", "rearWheels"]:
+            assert name in symbols_by_name, f"Missing part/attr usage: {name}"
+            assert "Usage" in symbols_by_name[name]["kind"], \
+                   f"{name} should be a usage"
+
+        # Verify qualified names show containment hierarchy
+        assert symbols_by_name["engine"]["qualified_name"] == "RelationsTest::Vehicle::engine"
+        assert symbols_by_name["horsepower"]["qualified_name"] == "RelationsTest::Engine::horsepower"
+        assert symbols_by_name["rearWheels"]["qualified_name"] == "RelationsTest::Car::rearWheels"
+
+        # Verify supertypes capture relationships
+        # Car :> Vehicle - specialization
+        car = symbols_by_name["Car"]
+        assert "supertypes" in car, "Car should have supertypes"
+        assert "Vehicle" in car["supertypes"], \
+            f"Car should specialize Vehicle, got: {car['supertypes']}"
+
+        # engine : Engine - typing
+        engine = symbols_by_name["engine"]
+        assert "supertypes" in engine, "engine should have supertypes"
+        assert "Engine" in engine["supertypes"], \
+            f"engine should be typed as Engine, got: {engine['supertypes']}"
+
+        # rearWheels : Wheel :>> wheels - both typing and redefinition
+        rear = symbols_by_name["rearWheels"]
+        assert "supertypes" in rear, "rearWheels should have supertypes"
+        assert "Wheel" in rear["supertypes"], \
+            f"rearWheels should be typed as Wheel, got: {rear['supertypes']}"
+        assert "wheels" in rear["supertypes"], \
+            f"rearWheels should redefine wheels, got: {rear['supertypes']}"
+
+        # Verify horsepower : Integer
+        hp = symbols_by_name["horsepower"]
+        assert "supertypes" in hp, "horsepower should have supertypes"
+        assert "Integer" in hp["supertypes"], \
+            f"horsepower should be typed as Integer, got: {hp['supertypes']}"
 
 
 @pytest.mark.integration
