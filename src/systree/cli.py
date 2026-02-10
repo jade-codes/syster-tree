@@ -332,6 +332,7 @@ def export_xmi(
     *,
     stdlib: bool = True,
     stdlib_path: str | Path | None = None,
+    self_contained: bool = False,
 ) -> str:
     """Export SysML/KerML model to XMI format.
 
@@ -339,6 +340,7 @@ def export_xmi(
         path: Path to file or directory to export.
         stdlib: Load standard library (default: True).
         stdlib_path: Custom standard library path.
+        self_contained: Include standard library in export (default: False).
 
     Returns:
         XMI XML string.
@@ -348,9 +350,12 @@ def export_xmi(
         CliNotFoundError: If the syster CLI is not found.
         AnalysisError: If export fails.
     """
+    args = ["--export", "xmi"]
+    if self_contained:
+        args.append("--self-contained")
     result = _run_cli(
         path,
-        args=["--export", "xmi"],
+        args=args,
         stdlib=stdlib,
         stdlib_path=stdlib_path,
     )
@@ -362,6 +367,7 @@ def export_jsonld(
     *,
     stdlib: bool = True,
     stdlib_path: str | Path | None = None,
+    self_contained: bool = False,
 ) -> list | dict:
     """Export SysML/KerML model to JSON-LD format.
 
@@ -369,6 +375,7 @@ def export_jsonld(
         path: Path to file or directory to export.
         stdlib: Load standard library (default: True).
         stdlib_path: Custom standard library path.
+        self_contained: Include standard library in export (default: False).
 
     Returns:
         JSON-LD data (list of elements or dict with @graph).
@@ -378,9 +385,12 @@ def export_jsonld(
         CliNotFoundError: If the syster CLI is not found.
         AnalysisError: If export fails.
     """
+    args = ["--export", "json-ld"]
+    if self_contained:
+        args.append("--self-contained")
     result = _run_cli(
         path,
-        args=["--export", "json-ld"],
+        args=args,
         stdlib=stdlib,
         stdlib_path=stdlib_path,
     )
@@ -399,6 +409,7 @@ def export_kpar(
     *,
     stdlib: bool = True,
     stdlib_path: str | Path | None = None,
+    self_contained: bool = False,
 ) -> bytes:
     """Export SysML/KerML model to KPAR format.
 
@@ -408,6 +419,7 @@ def export_kpar(
         path: Path to file or directory to export.
         stdlib: Load standard library (default: True).
         stdlib_path: Custom standard library path.
+        self_contained: Include standard library in export (default: False).
 
     Returns:
         KPAR archive as bytes (ZIP format).
@@ -432,6 +444,8 @@ def export_kpar(
         cmd.extend(["--stdlib-path", str(stdlib_path)])
 
     cmd.extend(["--export", "kpar"])
+    if self_contained:
+        cmd.append("--self-contained")
     cmd.append(str(input_path.resolve()))
 
     try:
@@ -450,6 +464,41 @@ def export_kpar(
             stderr=error_message,
         )
 
+    return result.stdout
+
+
+def export_yaml(
+    path: str | Path,
+    *,
+    stdlib: bool = True,
+    stdlib_path: str | Path | None = None,
+    self_contained: bool = False,
+) -> str:
+    """Export SysML/KerML model to YAML format.
+
+    Args:
+        path: Path to file or directory to export.
+        stdlib: Load standard library (default: True).
+        stdlib_path: Custom standard library path.
+        self_contained: Include standard library in export (default: False).
+
+    Returns:
+        YAML string.
+
+    Raises:
+        FileNotFoundError: If the input path doesn't exist.
+        CliNotFoundError: If the syster CLI is not found.
+        AnalysisError: If export fails.
+    """
+    args = ["--export", "yaml"]
+    if self_contained:
+        args.append("--self-contained")
+    result = _run_cli(
+        path,
+        args=args,
+        stdlib=stdlib,
+        stdlib_path=stdlib_path,
+    )
     return result.stdout
 
 

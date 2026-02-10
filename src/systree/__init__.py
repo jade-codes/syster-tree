@@ -7,6 +7,7 @@ from systree.cli import (
     export_jsonld,
     export_kpar,
     export_xmi,
+    export_yaml,
     get_symbols,
     import_export,
     import_file,
@@ -25,6 +26,7 @@ __all__ = [
     "export_xmi",
     "export_jsonld",
     "export_kpar",
+    "export_yaml",
     # Import functions
     "import_file",
     "import_symbols",
