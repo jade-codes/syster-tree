@@ -19,7 +19,7 @@ from systree.cli import (
 from systree.exceptions import AnalysisError, CliNotFoundError, SystreeError
 from systree.models import AnalysisResult, FileSymbols, Symbol
 
-__version__ = "0.3.2"
+__version__ = "0.3.2a0"
 
 __all__ = [
     # Analysis functions
