@@ -52,7 +52,7 @@ result = analyze("model.sysml", stdlib_path="/path/to/sysml.library")
 ### Extract Symbols
 
 ```python
-from systree import get_symbols
+from systree import get_symbols, export_ast
 
 # Get typed symbol objects
 file_symbols = get_symbols("model.sysml", stdlib=False)
@@ -62,6 +62,13 @@ for fs in file_symbols:
         print(f"  {sym.kind}: {sym.qualified_name} @ L{sym.start_line}:{sym.start_col}")
         if sym.supertypes:
             print(f"    extends: {sym.supertypes}")
+
+# Get raw AST JSON (for custom processing)
+ast_data = export_ast("model.sysml", stdlib=False)
+for file_data in ast_data.get("files", []):
+    print(f"File: {file_data['path']}")
+    for sym in file_data["symbols"]:
+        print(f"  {sym['kind']}: {sym['qualified_name']}")
 ```
 
 ### Export Formats
@@ -152,6 +159,12 @@ Analyze SysML/KerML files.
 Extract typed symbol objects from files.
 
 **Returns:** List of `FileSymbols`, each containing `path` and `symbols: list[Symbol]`
+
+### `export_ast(path, *, stdlib=True, stdlib_path=None) -> dict`
+
+Export raw AST (Abstract Syntax Tree) as JSON. For typed symbol objects, use `get_symbols()` instead.
+
+**Returns:** Dict with `files` key containing list of file data with symbols.
 
 ### `export_xmi(path, *, stdlib=True, stdlib_path=None, self_contained=False) -> str`
 

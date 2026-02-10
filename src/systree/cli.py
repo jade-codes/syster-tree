@@ -22,8 +22,6 @@ def _find_stdlib() -> Path | None:
     Searches in order:
     1. SYSML_STDLIB environment variable
     2. User cache directory (~/.cache/systree/sysml.library) - downloaded stdlib
-    3. sysml.library in current directory
-    4. Relative to this package (for monorepo development)
 
     Returns:
         Path to stdlib directory, or None if not found.
@@ -37,23 +35,43 @@ def _find_stdlib() -> Path | None:
         if p.exists():
             return p
 
-    # 2. User cache directory (downloaded stdlib - preferred)
+    # 2. User cache directory (downloaded stdlib)
     cache_dir = Path.home() / ".cache" / "systree" / "sysml.library"
     if cache_dir.exists():
         return cache_dir
 
-    # 3. Current directory
-    cwd_path = Path.cwd() / "sysml.library"
-    if cwd_path.exists():
-        return cwd_path
-
-    # 4. Relative to package (monorepo layout: systree/src/systree/cli.py -> base/sysml.library)
-    package_dir = Path(__file__).parent  # systree/src/systree
-    monorepo_path = package_dir.parent.parent.parent / "base" / "sysml.library"
-    if monorepo_path.exists():
-        return monorepo_path
-
     return None
+
+
+def get_stdlib_path() -> Path:
+    """Get the path to the SysML standard library.
+
+    Returns the path to the stdlib, downloading it if necessary.
+    Use this to see which stdlib path will be used by default.
+
+    Returns:
+        Path to the sysml.library directory.
+
+    Example:
+        >>> from systree import get_stdlib_path
+        >>> print(get_stdlib_path())
+        /home/user/.cache/systree/sysml.library
+    """
+    detected = _find_stdlib()
+    if detected is None:
+        detected = download_stdlib()
+    return detected
+
+
+def get_cache_dir() -> Path:
+    """Get the systree cache directory path.
+
+    This is where the stdlib is downloaded to: ~/.cache/systree/
+
+    Returns:
+        Path to the cache directory.
+    """
+    return Path.home() / ".cache" / "systree"
 
 
 def download_stdlib(version: str = "2025-12") -> Path:
@@ -262,6 +280,46 @@ def analyze(
         f"Could not parse CLI output: {output}",
         stderr=result.stderr,
     )
+
+
+def export_ast(
+    path: str | Path,
+    *,
+    stdlib: bool = True,
+    stdlib_path: str | Path | None = None,
+) -> dict:
+    """Export raw AST (Abstract Syntax Tree) as JSON.
+
+    This returns the raw JSON output from the CLI's --export-ast flag.
+    For typed symbol objects, use get_symbols() instead.
+
+    Args:
+        path: Path to file or directory to analyze.
+        stdlib: Load standard library (default: True).
+        stdlib_path: Custom standard library path.
+
+    Returns:
+        Dict with "files" key containing list of file data with symbols.
+
+    Raises:
+        FileNotFoundError: If the input path doesn't exist.
+        CliNotFoundError: If the syster CLI is not found.
+        AnalysisError: If analysis fails.
+    """
+    result = _run_cli(
+        path,
+        args=["--export-ast"],
+        stdlib=stdlib,
+        stdlib_path=stdlib_path,
+    )
+
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        raise AnalysisError(
+            f"Failed to parse AST JSON: {e}",
+            stderr=result.stderr,
+        ) from e
 
 
 def get_symbols(

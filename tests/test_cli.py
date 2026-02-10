@@ -649,6 +649,36 @@ class TestIntegration:
         finally:
             xmi_path.unlink()
 
+    def test_real_export_ast(
+        self, cli_available: bool, sample_sysml_file: Path
+    ) -> None:
+        """Test export_ast returns raw JSON AST data."""
+        if not cli_available:
+            pytest.skip("Syster CLI not available")
+
+        from systree import export_ast
+
+        ast_data = export_ast(sample_sysml_file, stdlib=False)
+
+        # Should be a dict with files key
+        assert isinstance(ast_data, dict)
+        assert "files" in ast_data
+
+        # Should have at least one file
+        files = ast_data["files"]
+        assert len(files) >= 1
+
+        # Each file should have path and symbols
+        for file_data in files:
+            assert "path" in file_data
+            assert "symbols" in file_data
+
+            # Symbols should have expected structure
+            for sym in file_data["symbols"]:
+                assert "name" in sym
+                assert "kind" in sym
+                assert "qualified_name" in sym
+
 
 @pytest.mark.integration
 class TestOutputFormats:
