@@ -67,7 +67,7 @@ for fs in file_symbols:
 ### Export Formats
 
 ```python
-from systree import export_xmi, export_jsonld, export_kpar
+from systree import export_xmi, export_jsonld, export_kpar, export_yaml
 
 # Export to XMI (returns XML string)
 xmi = export_xmi("model.sysml")
@@ -79,6 +79,28 @@ jsonld = export_jsonld("model.sysml")
 kpar_bytes = export_kpar("model.sysml")
 with open("model.kpar", "wb") as f:
     f.write(kpar_bytes)
+
+# Export to YAML (returns YAML string)
+yaml_str = export_yaml("model.sysml")
+```
+
+### Self-Contained Exports
+
+By default, exports contain only your model. Use `self_contained=True` to include
+the standard library, creating a standalone file with no external dependencies:
+
+```python
+# Normal export - just your model (small, but has external references)
+xmi = export_xmi("model.sysml")  # ~1 KB
+
+# Self-contained - includes stdlib (large, but fully portable)
+xmi_full = export_xmi("model.sysml", self_contained=True)  # ~3 MB
+
+# Works with all export formats
+jsonld = export_jsonld("model.sysml", self_contained=True)
+kpar = export_kpar("model.sysml", self_contained=True)
+yaml_str = export_yaml("model.sysml", self_contained=True)
+```
 ```
 
 ### Import Interchange Files
@@ -131,17 +153,29 @@ Extract typed symbol objects from files.
 
 **Returns:** List of `FileSymbols`, each containing `path` and `symbols: list[Symbol]`
 
-### `export_xmi(path, *, stdlib=True, stdlib_path=None) -> str`
+### `export_xmi(path, *, stdlib=True, stdlib_path=None, self_contained=False) -> str`
 
 Export model to XMI XML format.
 
-### `export_jsonld(path, *, stdlib=True, stdlib_path=None) -> list | dict`
+- `self_contained`: Include standard library in export (default: False)
+
+### `export_jsonld(path, *, stdlib=True, stdlib_path=None, self_contained=False) -> list | dict`
 
 Export model to JSON-LD format.
 
-### `export_kpar(path, *, stdlib=True, stdlib_path=None) -> bytes`
+- `self_contained`: Include standard library in export (default: False)
+
+### `export_kpar(path, *, stdlib=True, stdlib_path=None, self_contained=False) -> bytes`
 
 Export model to KPAR (Kernel Package Archive) format. Returns ZIP bytes.
+
+- `self_contained`: Include standard library in export (default: False)
+
+### `export_yaml(path, *, stdlib=True, stdlib_path=None, self_contained=False) -> str`
+
+Export model to YAML format.
+
+- `self_contained`: Include standard library in export (default: False)
 
 ### `import_file(path, *, stdlib=True, stdlib_path=None) -> AnalysisResult`
 
