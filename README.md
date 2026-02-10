@@ -20,7 +20,7 @@ pip install -e ".[dev]"
 Requires syster-cli v0.3.2-alpha or later:
 
 ```bash
-cargo install syster-cli
+cargo install --git https://github.com/jade-codes/syster-cli.git
 ```
 
 Or via make:
