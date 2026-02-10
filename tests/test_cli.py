@@ -97,17 +97,36 @@ class TestAnalyze:
             patch("shutil.which", return_value="/usr/bin/syster"),
             patch("subprocess.run", return_value=mock_result) as mock_run,
         ):
+            # Test verbose and no-stdlib (stdlib_path ignored when stdlib=False)
             analyze(
                 sample_sysml_file,
                 verbose=True,
                 stdlib=False,
-                stdlib_path="/custom/stdlib",
             )
 
             call_args = mock_run.call_args
             cmd = call_args[0][0]
             assert "--verbose" in cmd
             assert "--no-stdlib" in cmd
+
+    def test_analysis_with_stdlib_path(self, sample_sysml_file: Path) -> None:
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "✓ Analyzed 1 file: 5 symbols, 0 warnings"
+        mock_result.stderr = ""
+
+        with (
+            patch("shutil.which", return_value="/usr/bin/syster"),
+            patch("subprocess.run", return_value=mock_result) as mock_run,
+        ):
+            # Test custom stdlib path (stdlib=True is default)
+            analyze(
+                sample_sysml_file,
+                stdlib_path="/custom/stdlib",
+            )
+
+            call_args = mock_run.call_args
+            cmd = call_args[0][0]
             assert "--stdlib-path" in cmd
             assert "/custom/stdlib" in cmd
 
