@@ -3,7 +3,7 @@
 all: lint typecheck test
 
 install-cli:
-	cargo install --git https://github.com/jade-codes/syster-cli.git --tag v0.3.2-alpha
+	cargo install syster-cli@0.3.2-alpha
 
 install:
 	pip install .
