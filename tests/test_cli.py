@@ -1316,23 +1316,80 @@ package TestModel {
         sysml_path = tmp_path / "model.sysml"
         sysml_path.write_text(sysml_content)
 
-        # Export without self-contained (should not include stdlib)
+        # Export without self-contained (should not include stdlib definitions)
         xmi_normal = export_xmi(sysml_path, stdlib=True, self_contained=False)
 
-        # Export with self-contained (should include stdlib)
+        # Export with self-contained (should include stdlib definitions)
         xmi_self = export_xmi(sysml_path, stdlib=True, self_contained=True)
 
-        # Self-contained export should be larger (includes stdlib)
-        # Note: This may fail if CLI doesn't support --self-contained yet
-        assert len(xmi_self) >= len(xmi_normal), \
-            "Self-contained export should be at least as large as normal export"
-
         # Both should contain our model
-        assert "TestModel" in xmi_normal
-        assert "TestModel" in xmi_self
+        assert "TestModel" in xmi_normal, "Normal export should contain TestModel"
+        assert "TestModel" in xmi_self, "Self-contained export should contain TestModel"
+        assert "Temperature" in xmi_normal, "Normal export should contain Temperature"
+        assert "Temperature" in xmi_self, "Self-contained export should contain Temperature"
 
-        # Self-contained should include stdlib elements like Real
-        # (This is a soft check - may not work with all CLI versions)
-        if "ScalarValues" in xmi_self and "ScalarValues" not in xmi_normal:
-            # CLI correctly includes stdlib in self-contained export
-            pass  # Success
+        # Self-contained export should be significantly larger (includes stdlib)
+        assert len(xmi_self) > len(xmi_normal), \
+            f"Self-contained ({len(xmi_self)} bytes) should be larger than normal ({len(xmi_normal)} bytes)"
+
+        # Normal export should NOT include stdlib package definitions
+        # (it may have references but not the full definitions)
+        assert xmi_normal.count("Package") < xmi_self.count("Package"), \
+            "Self-contained should have more Package definitions than normal export"
+
+        # Self-contained should include stdlib elements
+        assert "ScalarValues" in xmi_self, "Self-contained export should include ScalarValues package"
+        assert "KerML" in xmi_self or "Kernel" in xmi_self, \
+            "Self-contained export should include Kernel library elements"
+
+    def test_export_jsonld_self_contained(
+        self, cli_available: bool, tmp_path: Path
+    ) -> None:
+        """Test self-contained JSON-LD export includes stdlib elements."""
+        if not cli_available:
+            pytest.skip("Syster CLI not available")
+
+        # Create a SysML file that references Real from the stdlib
+        sysml_content = """\
+package TestModel {
+    import ScalarValues::Real;
+    
+    attribute def Temperature :> Real;
+}"""
+        sysml_path = tmp_path / "model.sysml"
+        sysml_path.write_text(sysml_content)
+
+        # Export without self-contained
+        jsonld_normal = export_jsonld(sysml_path, stdlib=True, self_contained=False)
+
+        # Export with self-contained
+        jsonld_self = export_jsonld(sysml_path, stdlib=True, self_contained=True)
+
+        # Get element counts
+        def count_elements(data: list | dict) -> int:
+            if isinstance(data, list):
+                return len(data)
+            return len(data.get("@graph", []))
+
+        normal_count = count_elements(jsonld_normal)
+        self_count = count_elements(jsonld_self)
+
+        # Self-contained should have many more elements (stdlib included)
+        assert self_count > normal_count, \
+            f"Self-contained ({self_count} elements) should have more than normal ({normal_count} elements)"
+
+        # Both should contain our model elements
+        def get_names(data: list | dict) -> set[str]:
+            elements = data if isinstance(data, list) else data.get("@graph", [])
+            return {e.get("name") for e in elements if isinstance(e, dict) and "name" in e}
+
+        normal_names = get_names(jsonld_normal)
+        self_names = get_names(jsonld_self)
+
+        assert "TestModel" in normal_names, "Normal export should contain TestModel"
+        assert "TestModel" in self_names, "Self-contained export should contain TestModel"
+        assert "Temperature" in normal_names, "Normal export should contain Temperature"
+        assert "Temperature" in self_names, "Self-contained export should contain Temperature"
+
+        # Self-contained should include stdlib packages
+        assert "ScalarValues" in self_names, "Self-contained should include ScalarValues"
