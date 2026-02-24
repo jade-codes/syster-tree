@@ -23,13 +23,6 @@ from systree.models import AnalysisResult, FileSymbols, Symbol
 
 __version__ = "0.4.0a2"
 
-# Ensure the correct CLI version is installed on import.
-# This is a no-op if the CLI is already present at the right version.
-try:
-    find_cli()
-except CliNotFoundError:
-    pass  # cargo not available — user will get a clear error on first use
-
 __all__ = [
     # Analysis functions
     "analyze",

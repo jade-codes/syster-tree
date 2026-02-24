@@ -235,9 +235,10 @@ def _get_cli_version(binary: str) -> str | None:
 def find_cli() -> str:
     """Find the syster CLI binary at the correct version.
 
-    Searches for an existing binary on PATH or in cache, and verifies
-    it matches CLI_VERSION. If the version is wrong or no binary is found,
-    installs the correct version from crates.io via cargo.
+    Searches in order:
+    1. System PATH (includes pip-installed syster-cli wheel binary)
+    2. Cached binary (~/.cache/systree/bin/syster)
+    3. Falls back to cargo install from crates.io
 
     Returns:
         Path to the syster binary at the correct version.
@@ -245,7 +246,7 @@ def find_cli() -> str:
     Raises:
         CliNotFoundError: If the binary cannot be found or installed.
     """
-    # 1. Check PATH
+    # 1. Check PATH (pip-installed syster-cli wheel puts binary here)
     binary = shutil.which("syster")
     if binary is not None:
         version = _get_cli_version(binary)
@@ -259,13 +260,14 @@ def find_cli() -> str:
         if version == CLI_VERSION:
             return str(cached)
 
-    # 3. Install correct version from crates.io
+    # 3. Fallback: install from crates.io via cargo
     try:
         downloaded = download_cli()
         return str(downloaded)
     except RuntimeError as e:
         raise CliNotFoundError(
-            f"Syster CLI {CLI_VERSION} not found and auto-install failed: {e}"
+            "Syster CLI not found. Install with: pip install syster-cli\n"
+            f"Or install Rust and retry (cargo fallback failed: {e})"
         ) from e
 
 

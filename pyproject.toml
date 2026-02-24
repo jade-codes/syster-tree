@@ -24,7 +24,9 @@ classifiers = [
     "Topic :: Software Development :: Compilers",
     "Topic :: Scientific/Engineering",
 ]
-dependencies = []
+dependencies = [
+    "syster-cli==0.4.0a2",
+]
 
 [project.optional-dependencies]
 dev = [
