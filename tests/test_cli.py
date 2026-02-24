@@ -1352,9 +1352,10 @@ package VehicleModel {
         xmi2 = export_xmi(vehicle_model, stdlib=False)
 
         # UUIDs are non-deterministic, so strip them for comparison
-        uuid_pattern = re.compile(r'(xmi:id|elementId)="[a-f0-9-]+"')
-        xmi1_normalized = uuid_pattern.sub('id="UUID"', xmi1)
-        xmi2_normalized = uuid_pattern.sub('id="UUID"', xmi2)
+        # Match full UUID pattern (with optional -m suffix for membership IDs)
+        uuid_pattern = re.compile(r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}(?:-m)?')
+        xmi1_normalized = uuid_pattern.sub('UUID', xmi1)
+        xmi2_normalized = uuid_pattern.sub('UUID', xmi2)
 
         # Structure should be identical after normalizing UUIDs
         assert xmi1_normalized == xmi2_normalized, "XMI structure differs between exports"
