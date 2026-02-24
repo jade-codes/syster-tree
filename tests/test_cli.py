@@ -464,6 +464,37 @@ class TestImportFile:
             cmd = mock_run.call_args[0][0]
             assert "--import" in cmd
 
+    def test_import_with_warnings(self, tmp_path: Path) -> None:
+        """Exit code 2 means success with warnings (e.g. unresolved stdlib types)."""
+        xmi_file = tmp_path / "model.xmi"
+        xmi_file.write_text('<?xml version="1.0"?><xmi:XMI/>')
+
+        mock_result = MagicMock()
+        mock_result.returncode = 2
+        mock_result.stdout = json.dumps({
+            "file_count": 1,
+            "symbol_count": 3,
+            "error_count": 0,
+            "warning_count": 1,
+            "diagnostics": [
+                "Warning: Relationship target 'Integer' not found (may be a stdlib type)"
+            ],
+        })
+        mock_result.stderr = (
+            "1 validation issue(s):\n"
+            "    Warning: Relationship target 'Integer' not found (may be a stdlib type)"
+        )
+
+        with (
+            patch("shutil.which", return_value="/usr/bin/syster"),
+            patch("subprocess.run", return_value=mock_result),
+        ):
+            result = import_file(xmi_file)
+
+            assert result.file_count == 1
+            assert result.symbol_count == 3
+            assert result.warning_count == 1
+
 
 class TestImportSymbols:
     """Tests for the import_symbols function."""
@@ -519,13 +550,17 @@ class TestDecompile:
         sysml_output = "package Vehicle { part def Car; }"
         mock_result = MagicMock()
         mock_result.returncode = 0
-        mock_result.stdout = sysml_output
+        mock_result.stdout = "✓ Decompiled 2 elements"
         mock_result.stderr = ""
 
         with (
             patch("shutil.which", return_value="/usr/bin/syster"),
             patch("subprocess.run", return_value=mock_result) as mock_run,
         ):
+            # CLI 0.4.0+ writes decompiled output to .sysml file
+            output_sysml = xmi_file.with_suffix(".sysml")
+            output_sysml.write_text(sysml_output)
+
             result = decompile(xmi_file)
 
             assert result == sysml_output
