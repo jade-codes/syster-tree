@@ -213,7 +213,7 @@ def _run_cli(
     except OSError as e:
         raise CliNotFoundError(f"Failed to execute syster CLI: {e}") from e
 
-    if result.returncode != 0:
+    if result.returncode not in (0, 2):
         error_message = result.stderr.strip() or result.stdout.strip()
         raise AnalysisError(
             f"Analysis failed with exit code {result.returncode}: {error_message}",
@@ -707,12 +707,21 @@ def decompile(
         CliNotFoundError: If the syster CLI is not found.
         AnalysisError: If decompilation fails.
     """
+    input_path = Path(path)
     result = _run_cli(
         path,
         args=["--decompile"],
         stdlib=stdlib,
         stdlib_path=stdlib_path,
     )
+
+    # CLI 0.4.0+ writes decompiled SysML to a file alongside the input,
+    # e.g. model.xmi -> model.sysml. Read that file if it exists.
+    output_sysml = input_path.with_suffix(".sysml")
+    if output_sysml.exists():
+        return output_sysml.read_text()
+
+    # Fallback: return stdout (older CLI versions may print to stdout)
     return result.stdout
 
 
