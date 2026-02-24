@@ -136,127 +136,73 @@ def download_stdlib(version: str = "2025-12") -> Path:
 # CLI version that this Python package is aligned with
 CLI_VERSION = "0.4.0-alpha"
 
-# GitHub repo for CLI binary releases
-CLI_REPO = "jade-codes/syster-cli"
 
-
-def _get_platform_artifact() -> tuple[str, str]:
-    """Get the platform-specific artifact name and binary filename.
-
-    Returns:
-        Tuple of (artifact_name, binary_filename).
-
-    Raises:
-        RuntimeError: If the current platform is not supported.
-    """
-    import platform
-
-    system = platform.system().lower()
-    machine = platform.machine().lower()
-
-    if system == "linux":
-        if machine in ("x86_64", "amd64"):
-            return "syster-linux-x64-musl", "syster"
-        elif machine in ("aarch64", "arm64"):
-            return "syster-linux-arm64", "syster"
-    elif system == "darwin":
-        if machine in ("x86_64", "amd64"):
-            return "syster-darwin-x64", "syster"
-        elif machine in ("aarch64", "arm64"):
-            return "syster-darwin-arm64", "syster"
-    elif system == "windows":
-        if machine in ("x86_64", "amd64"):
-            return "syster-windows-x64", "syster.exe"
-
-    raise RuntimeError(f"Unsupported platform: {system}-{machine}")
+def _cli_cache_dir() -> Path:
+    """Get the directory where the CLI binary is installed."""
+    return Path.home() / ".cache" / "systree" / "bin"
 
 
 def _cli_cache_path() -> Path:
     """Get the path where the CLI binary is cached."""
-    _, binary_name = _get_platform_artifact()
-    return Path.home() / ".cache" / "systree" / "bin" / binary_name
+    return _cli_cache_dir() / "syster"
 
 
 def download_cli(version: str | None = None) -> Path:
-    """Download the syster CLI binary from GitHub Releases.
+    """Install the syster CLI from crates.io using cargo.
 
     Args:
-        version: CLI version to download (default: version aligned with this package).
+        version: CLI version to install (default: version aligned with this package).
 
     Returns:
-        Path to the downloaded binary.
+        Path to the installed binary.
 
     Raises:
-        RuntimeError: If download fails or platform is unsupported.
+        RuntimeError: If cargo is not available or install fails.
     """
-    import io
-    import stat
-    import tarfile
-    import urllib.request
-    import zipfile
-
     if version is None:
         version = CLI_VERSION
 
-    artifact, binary_name = _get_platform_artifact()
-    cache_bin = Path.home() / ".cache" / "systree" / "bin"
-    binary_path = cache_bin / binary_name
+    cache_bin = _cli_cache_dir()
+    binary_path = _cli_cache_path()
 
     if binary_path.exists():
         return binary_path
 
+    cargo = shutil.which("cargo")
+    if cargo is None:
+        raise RuntimeError(
+            "cargo not found. Install Rust from https://rustup.rs/ "
+            "or install the CLI manually: cargo install syster-cli"
+        )
+
     cache_bin.mkdir(parents=True, exist_ok=True)
 
-    # Try .tar.gz first (Linux/macOS), then .zip (Windows)
-    for ext, opener in [(".tar.gz", "tar"), (".zip", "zip")]:
-        url = (
-            f"https://github.com/{CLI_REPO}/releases/download/"
-            f"v{version}/{artifact}{ext}"
+    print(f"Installing syster-cli@{version} from crates.io...")
+    try:
+        result = subprocess.run(
+            [cargo, "install", f"syster-cli@{version}", "--root", str(cache_bin.parent)],
+            capture_output=True,
+            text=True,
+            check=False,
         )
-        try:
-            print(f"Downloading syster CLI v{version} for {artifact}...")
-            with urllib.request.urlopen(url, timeout=60) as response:
-                data = response.read()
+    except OSError as e:
+        raise RuntimeError(f"Failed to run cargo: {e}") from e
 
-            if opener == "tar":
-                with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
-                    for member in tf.getmembers():
-                        if member.name.endswith(binary_name):
-                            f = tf.extractfile(member)
-                            if f is not None:
-                                binary_path.write_bytes(f.read())
-                                break
-                    else:
-                        raise RuntimeError(
-                            f"Binary '{binary_name}' not found in archive"
-                        )
-            else:
-                with zipfile.ZipFile(io.BytesIO(data)) as zf:
-                    for name in zf.namelist():
-                        if name.endswith(binary_name):
-                            binary_path.write_bytes(zf.read(name))
-                            break
-                    else:
-                        raise RuntimeError(
-                            f"Binary '{binary_name}' not found in archive"
-                        )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"cargo install failed (exit {result.returncode}): "
+            f"{result.stderr.strip()}"
+        )
 
-            # Make executable
-            binary_path.chmod(binary_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
-            print(f"Installed syster CLI to {binary_path}")
-            return binary_path
-        except urllib.error.HTTPError:
-            continue
-        except Exception as e:
-            # Clean up partial download
-            if binary_path.exists():
-                binary_path.unlink()
-            raise RuntimeError(f"Failed to download CLI from {url}: {e}") from e
+    # cargo install --root puts binaries in <root>/bin/
+    installed = cache_bin / "syster"
+    if not installed.exists():
+        raise RuntimeError(
+            f"cargo install succeeded but binary not found at {installed}"
+        )
 
-    raise RuntimeError(
-        f"No binary release found for {artifact} v{version}. "
-        f"Install manually: cargo install syster-cli@{version}"
-    )
+    print(f"Installed syster CLI to {installed}")
+    return installed
 
 
 def find_cli() -> str:
@@ -265,13 +211,13 @@ def find_cli() -> str:
     Searches in order:
     1. System PATH
     2. Cached binary (~/.cache/systree/bin/syster)
-    3. Auto-downloads from GitHub Releases
+    3. Auto-installs from crates.io via cargo
 
     Returns:
         Path to the syster binary.
 
     Raises:
-        CliNotFoundError: If the binary is not found and cannot be downloaded.
+        CliNotFoundError: If the binary is not found and cannot be installed.
     """
     # 1. Check PATH
     binary = shutil.which("syster")
@@ -283,13 +229,13 @@ def find_cli() -> str:
     if cached.exists():
         return str(cached)
 
-    # 3. Auto-download
+    # 3. Auto-install from crates.io
     try:
         downloaded = download_cli()
         return str(downloaded)
     except RuntimeError as e:
         raise CliNotFoundError(
-            f"Syster CLI not found and auto-download failed: {e}"
+            f"Syster CLI not found and auto-install failed: {e}"
         ) from e
 
 

@@ -82,7 +82,7 @@ class TestFindCli:
         with (
             patch("shutil.which", return_value=None),
             patch("systree.cli._cli_cache_path", return_value=Path("/nonexistent")),
-            patch("systree.cli.download_cli", side_effect=RuntimeError("download failed")),
+            patch("systree.cli.download_cli", side_effect=RuntimeError("cargo not found")),
         ):
             with pytest.raises(CliNotFoundError):
                 find_cli()
@@ -99,7 +99,7 @@ class TestAnalyze:
         with (
             patch("shutil.which", return_value=None),
             patch("systree.cli._cli_cache_path", return_value=Path("/nonexistent")),
-            patch("systree.cli.download_cli", side_effect=RuntimeError("download failed")),
+            patch("systree.cli.download_cli", side_effect=RuntimeError("cargo not found")),
         ):
             with pytest.raises(CliNotFoundError):
                 analyze(sample_sysml_file)

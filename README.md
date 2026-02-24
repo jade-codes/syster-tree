@@ -17,15 +17,15 @@ pip install -e ".[dev]"
 
 ### Installing the CLI
 
-The CLI binary is **automatically downloaded** on first use — no Rust toolchain required.
+The CLI is **automatically installed from crates.io** on first use (requires [Rust](https://rustup.rs/)).
 
-To pre-download or install manually:
+To pre-install or install manually:
 
 ```bash
-# Pre-download the binary (optional)
+# Pre-install via systree (installs to ~/.cache/systree/bin/)
 python -c "from systree import download_cli; download_cli()"
 
-# Or install from crates.io (requires Rust)
+# Or install globally
 cargo install syster-cli
 ```
 
