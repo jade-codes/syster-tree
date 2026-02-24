@@ -8,6 +8,7 @@ import pytest
 
 from systree import AnalysisResult, FileSymbols, Symbol, analyze
 from systree.cli import (
+    CLI_VERSION,
     SUCCESS_PATTERN,
     decompile,
     export_jsonld,
@@ -20,6 +21,13 @@ from systree.cli import (
     import_symbols,
 )
 from systree.exceptions import AnalysisError, CliNotFoundError
+
+
+@pytest.fixture(autouse=True)
+def _mock_cli_version():
+    """All tests assume the binary on PATH is the correct version."""
+    with patch("systree.cli._get_cli_version", return_value=CLI_VERSION):
+        yield
 
 
 class TestSuccessPattern:
@@ -50,9 +58,25 @@ class TestSuccessPattern:
 class TestFindCli:
     """Tests for CLI binary discovery."""
 
-    def test_find_cli_on_path(self) -> None:
-        with patch("shutil.which", return_value="/usr/bin/syster"):
+    def test_find_cli_on_path_correct_version(self) -> None:
+        with (
+            patch("shutil.which", return_value="/usr/bin/syster"),
+            patch("systree.cli._get_cli_version", return_value=CLI_VERSION),
+        ):
             assert find_cli() == "/usr/bin/syster"
+
+    def test_find_cli_on_path_wrong_version_falls_back(self, tmp_path: Path) -> None:
+        """Wrong version on PATH triggers install of correct version."""
+        downloaded = tmp_path / "syster"
+        downloaded.write_text("#!/bin/sh\n")
+
+        with (
+            patch("shutil.which", return_value="/usr/bin/syster"),
+            patch("systree.cli._get_cli_version", side_effect=["0.3.0", None]),
+            patch("systree.cli._cli_cache_path", return_value=tmp_path / "nonexistent"),
+            patch("systree.cli.download_cli", return_value=downloaded),
+        ):
+            assert find_cli() == str(downloaded)
 
     def test_find_cli_from_cache(self, tmp_path: Path) -> None:
         """Falls back to cached binary when not on PATH."""
@@ -62,6 +86,7 @@ class TestFindCli:
         with (
             patch("shutil.which", return_value=None),
             patch("systree.cli._cli_cache_path", return_value=cached_binary),
+            patch("systree.cli._get_cli_version", return_value=CLI_VERSION),
         ):
             assert find_cli() == str(cached_binary)
 

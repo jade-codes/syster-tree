@@ -165,8 +165,12 @@ def download_cli(version: str | None = None) -> Path:
     cache_bin = _cli_cache_dir()
     binary_path = _cli_cache_path()
 
+    # If already cached, check version matches
     if binary_path.exists():
-        return binary_path
+        cached_version = _get_cli_version(str(binary_path))
+        if cached_version == version:
+            return binary_path
+        print(f"Cached CLI version {cached_version} != {version}, reinstalling...")
 
     cargo = shutil.which("cargo")
     if cargo is None:
@@ -205,37 +209,63 @@ def download_cli(version: str | None = None) -> Path:
     return installed
 
 
-def find_cli() -> str:
-    """Find the syster CLI binary.
+def _get_cli_version(binary: str) -> str | None:
+    """Get the version string from a syster binary.
 
-    Searches in order:
-    1. System PATH
-    2. Cached binary (~/.cache/systree/bin/syster)
-    3. Auto-installs from crates.io via cargo
+    Returns the version (e.g. '0.4.0-alpha') or None if it can't be determined.
+    """
+    try:
+        result = subprocess.run(
+            [binary, "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            # Output is like "syster-cli 0.4.0-alpha"
+            parts = result.stdout.strip().split()
+            if len(parts) >= 2:
+                return parts[-1]
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return None
+
+
+def find_cli() -> str:
+    """Find the syster CLI binary at the correct version.
+
+    Searches for an existing binary on PATH or in cache, and verifies
+    it matches CLI_VERSION. If the version is wrong or no binary is found,
+    installs the correct version from crates.io via cargo.
 
     Returns:
-        Path to the syster binary.
+        Path to the syster binary at the correct version.
 
     Raises:
-        CliNotFoundError: If the binary is not found and cannot be installed.
+        CliNotFoundError: If the binary cannot be found or installed.
     """
     # 1. Check PATH
     binary = shutil.which("syster")
     if binary is not None:
-        return binary
+        version = _get_cli_version(binary)
+        if version == CLI_VERSION:
+            return binary
 
     # 2. Check cache
     cached = _cli_cache_path()
     if cached.exists():
-        return str(cached)
+        version = _get_cli_version(str(cached))
+        if version == CLI_VERSION:
+            return str(cached)
 
-    # 3. Auto-install from crates.io
+    # 3. Install correct version from crates.io
     try:
         downloaded = download_cli()
         return str(downloaded)
     except RuntimeError as e:
         raise CliNotFoundError(
-            f"Syster CLI not found and auto-install failed: {e}"
+            f"Syster CLI {CLI_VERSION} not found and auto-install failed: {e}"
         ) from e
 
 
