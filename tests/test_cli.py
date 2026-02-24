@@ -8,7 +8,6 @@ import pytest
 
 from systree import AnalysisResult, FileSymbols, Symbol, analyze
 from systree.cli import (
-    CLI_VERSION,
     SUCCESS_PATTERN,
     decompile,
     export_jsonld,
@@ -21,13 +20,6 @@ from systree.cli import (
     import_symbols,
 )
 from systree.exceptions import AnalysisError, CliNotFoundError
-
-
-@pytest.fixture(autouse=True)
-def _mock_cli_version():
-    """All tests assume the binary on PATH is the correct version."""
-    with patch("systree.cli._get_cli_version", return_value=CLI_VERSION):
-        yield
 
 
 class TestSuccessPattern:
@@ -58,57 +50,13 @@ class TestSuccessPattern:
 class TestFindCli:
     """Tests for CLI binary discovery."""
 
-    def test_find_cli_on_path_correct_version(self) -> None:
-        with (
-            patch("shutil.which", return_value="/usr/bin/syster"),
-            patch("systree.cli._get_cli_version", return_value=CLI_VERSION),
-        ):
+    def test_find_cli_on_path(self) -> None:
+        with patch("shutil.which", return_value="/usr/bin/syster"):
             assert find_cli() == "/usr/bin/syster"
 
-    def test_find_cli_on_path_wrong_version_falls_back(self, tmp_path: Path) -> None:
-        """Wrong version on PATH triggers install of correct version."""
-        downloaded = tmp_path / "syster"
-        downloaded.write_text("#!/bin/sh\n")
-
-        with (
-            patch("shutil.which", return_value="/usr/bin/syster"),
-            patch("systree.cli._get_cli_version", side_effect=["0.3.0", None]),
-            patch("systree.cli._cli_cache_path", return_value=tmp_path / "nonexistent"),
-            patch("systree.cli.download_cli", return_value=downloaded),
-        ):
-            assert find_cli() == str(downloaded)
-
-    def test_find_cli_from_cache(self, tmp_path: Path) -> None:
-        """Falls back to cached binary when not on PATH."""
-        cached_binary = tmp_path / "syster"
-        cached_binary.write_text("#!/bin/sh\n")
-
-        with (
-            patch("shutil.which", return_value=None),
-            patch("systree.cli._cli_cache_path", return_value=cached_binary),
-            patch("systree.cli._get_cli_version", return_value=CLI_VERSION),
-        ):
-            assert find_cli() == str(cached_binary)
-
-    def test_find_cli_auto_downloads(self, tmp_path: Path) -> None:
-        """Auto-downloads binary when not on PATH and not cached."""
-        downloaded = tmp_path / "syster"
-        downloaded.write_text("#!/bin/sh\n")
-
-        with (
-            patch("shutil.which", return_value=None),
-            patch("systree.cli._cli_cache_path", return_value=tmp_path / "nonexistent"),
-            patch("systree.cli.download_cli", return_value=downloaded),
-        ):
-            assert find_cli() == str(downloaded)
-
     def test_find_cli_not_found(self) -> None:
-        """Raises CliNotFoundError when all methods fail."""
-        with (
-            patch("shutil.which", return_value=None),
-            patch("systree.cli._cli_cache_path", return_value=Path("/nonexistent")),
-            patch("systree.cli.download_cli", side_effect=RuntimeError("cargo not found")),
-        ):
+        """Raises CliNotFoundError when binary is not on PATH."""
+        with patch("shutil.which", return_value=None):
             with pytest.raises(CliNotFoundError):
                 find_cli()
 
@@ -121,11 +69,7 @@ class TestAnalyze:
             analyze("/nonexistent/path/model.sysml")
 
     def test_cli_not_found(self, sample_sysml_file: Path) -> None:
-        with (
-            patch("shutil.which", return_value=None),
-            patch("systree.cli._cli_cache_path", return_value=Path("/nonexistent")),
-            patch("systree.cli.download_cli", side_effect=RuntimeError("cargo not found")),
-        ):
+        with patch("shutil.which", return_value=None):
             with pytest.raises(CliNotFoundError):
                 analyze(sample_sysml_file)
 

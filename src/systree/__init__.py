@@ -3,7 +3,6 @@
 from systree.cli import (
     analyze,
     decompile,
-    download_cli,
     download_stdlib,
     export_ast,
     export_jsonld,
@@ -40,7 +39,6 @@ __all__ = [
     "decompile",
     # Stdlib
     "download_stdlib",
-    "download_cli",
     "get_stdlib_path",
     "get_cache_dir",
     # Models

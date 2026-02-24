@@ -137,138 +137,26 @@ def download_stdlib(version: str = "2025-12") -> Path:
 CLI_VERSION = "0.4.3-alpha"
 
 
-def _cli_cache_dir() -> Path:
-    """Get the directory where the CLI binary is installed."""
-    return Path.home() / ".cache" / "systree" / "bin"
-
-
-def _cli_cache_path() -> Path:
-    """Get the path where the CLI binary is cached."""
-    return _cli_cache_dir() / "syster"
-
-
-def download_cli(version: str | None = None) -> Path:
-    """Install the syster CLI from crates.io using cargo.
-
-    Args:
-        version: CLI version to install (default: version aligned with this package).
-
-    Returns:
-        Path to the installed binary.
-
-    Raises:
-        RuntimeError: If cargo is not available or install fails.
-    """
-    if version is None:
-        version = CLI_VERSION
-
-    cache_bin = _cli_cache_dir()
-    binary_path = _cli_cache_path()
-
-    # If already cached, check version matches
-    if binary_path.exists():
-        cached_version = _get_cli_version(str(binary_path))
-        if cached_version == version:
-            return binary_path
-        print(f"Cached CLI version {cached_version} != {version}, reinstalling...")
-
-    cargo = shutil.which("cargo")
-    if cargo is None:
-        raise RuntimeError(
-            "cargo not found. Install Rust from https://rustup.rs/ "
-            "or install the CLI manually: cargo install syster-cli"
-        )
-
-    cache_bin.mkdir(parents=True, exist_ok=True)
-
-    print(f"Installing syster-cli@{version} from crates.io...")
-    try:
-        result = subprocess.run(
-            [cargo, "install", f"syster-cli@{version}", "--root", str(cache_bin.parent)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError as e:
-        raise RuntimeError(f"Failed to run cargo: {e}") from e
-
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"cargo install failed (exit {result.returncode}): "
-            f"{result.stderr.strip()}"
-        )
-
-    # cargo install --root puts binaries in <root>/bin/
-    installed = cache_bin / "syster"
-    if not installed.exists():
-        raise RuntimeError(
-            f"cargo install succeeded but binary not found at {installed}"
-        )
-
-    print(f"Installed syster CLI to {installed}")
-    return installed
-
-
-def _get_cli_version(binary: str) -> str | None:
-    """Get the version string from a syster binary.
-
-    Returns the version (e.g. '0.4.0-alpha') or None if it can't be determined.
-    """
-    try:
-        result = subprocess.run(
-            [binary, "--version"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=10,
-        )
-        if result.returncode == 0:
-            # Output is like "syster-cli 0.4.0-alpha"
-            parts = result.stdout.strip().split()
-            if len(parts) >= 2:
-                return parts[-1]
-    except (OSError, subprocess.TimeoutExpired):
-        pass
-    return None
-
-
 def find_cli() -> str:
-    """Find the syster CLI binary at the correct version.
+    """Find the syster CLI binary on PATH.
 
-    Searches in order:
-    1. System PATH (includes pip-installed syster-cli wheel binary)
-    2. Cached binary (~/.cache/systree/bin/syster)
-    3. Falls back to cargo install from crates.io
+    The binary is installed automatically as part of the ``syster-cli``
+    PyPI package, which is a dependency of ``systree``.
 
     Returns:
-        Path to the syster binary at the correct version.
+        Path to the syster binary.
 
     Raises:
-        CliNotFoundError: If the binary cannot be found or installed.
+        CliNotFoundError: If the binary is not found on PATH.
     """
-    # 1. Check PATH (pip-installed syster-cli wheel puts binary here)
     binary = shutil.which("syster")
     if binary is not None:
-        version = _get_cli_version(binary)
-        if version == CLI_VERSION:
-            return binary
+        return binary
 
-    # 2. Check cache
-    cached = _cli_cache_path()
-    if cached.exists():
-        version = _get_cli_version(str(cached))
-        if version == CLI_VERSION:
-            return str(cached)
-
-    # 3. Fallback: install from crates.io via cargo
-    try:
-        downloaded = download_cli()
-        return str(downloaded)
-    except RuntimeError as e:
-        raise CliNotFoundError(
-            "Syster CLI not found. Install with: pip install syster-cli\n"
-            f"Or install Rust and retry (cargo fallback failed: {e})"
-        ) from e
+    raise CliNotFoundError(
+        "Syster CLI not found on PATH. "
+        "Reinstall with: pip install --force-reinstall systree"
+    )
 
 
 def _run_cli(
