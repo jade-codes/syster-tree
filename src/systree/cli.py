@@ -134,7 +134,7 @@ def download_stdlib(version: str = "2025-12") -> Path:
 
 
 # CLI version that this Python package is aligned with
-CLI_VERSION = "0.4.0-alpha"
+CLI_VERSION = "0.4.3-alpha"
 
 
 def _cli_cache_dir() -> Path:
