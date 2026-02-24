@@ -489,11 +489,18 @@ class TestImportFile:
             patch("shutil.which", return_value="/usr/bin/syster"),
             patch("subprocess.run", return_value=mock_result),
         ):
-            result = import_file(xmi_file)
+            import warnings
+
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                result = import_file(xmi_file)
 
             assert result.file_count == 1
             assert result.symbol_count == 3
             assert result.warning_count == 1
+            assert len(w) == 1
+            assert "CLI completed with warnings" in str(w[0].message)
+            assert "Integer" in str(w[0].message)
 
 
 class TestImportSymbols:

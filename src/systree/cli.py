@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 import subprocess
+import warnings
 from pathlib import Path
 
 from systree.exceptions import AnalysisError, CliNotFoundError
@@ -218,6 +219,12 @@ def _run_cli(
         raise AnalysisError(
             f"Analysis failed with exit code {result.returncode}: {error_message}",
             stderr=result.stderr,
+        )
+
+    if result.returncode == 2:
+        warnings.warn(
+            f"CLI completed with warnings: {result.stderr.strip()}",
+            stacklevel=3,
         )
 
     return result
@@ -522,6 +529,12 @@ def export_kpar(
             stderr=error_message,
         )
 
+    if result.returncode == 2:
+        warnings.warn(
+            f"CLI completed with warnings: {result.stderr.decode(errors='replace').strip()}",
+            stacklevel=2,
+        )
+
     return result.stdout
 
 
@@ -782,6 +795,12 @@ def import_export(
         raise AnalysisError(
             f"Import/export failed with exit code {result.returncode}: {error_message}",
             stderr=error_message,
+        )
+
+    if result.returncode == 2:
+        warnings.warn(
+            f"CLI completed with warnings: {result.stderr.decode(errors='replace').strip()}",
+            stacklevel=2,
         )
 
     return result.stdout
