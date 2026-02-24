@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import warnings
+from importlib.metadata import PackageNotFoundError, files
 from pathlib import Path
 
 from systree.exceptions import AnalysisError, CliNotFoundError
@@ -138,23 +139,38 @@ CLI_VERSION = "0.4.3-alpha"
 
 
 def find_cli() -> str:
-    """Find the syster CLI binary on PATH.
+    """Find the syster CLI binary.
 
-    The binary is installed automatically as part of the ``syster-cli``
-    PyPI package, which is a dependency of ``systree``.
+    Searches in order:
+
+    1. The installed ``syster-cli`` package metadata — asks pip directly
+       where it placed the binary.  Works regardless of ``PATH``.
+    2. ``PATH`` — fallback for development setups where the binary was
+       built from source (e.g. ``cargo install``).
 
     Returns:
         Path to the syster binary.
 
     Raises:
-        CliNotFoundError: If the binary is not found on PATH.
+        CliNotFoundError: If the binary cannot be found.
     """
+    # 1. Ask pip where it installed the syster-cli binary
+    try:
+        for entry in files("syster-cli") or []:
+            if entry.name in ("syster", "syster.exe"):
+                path = entry.locate().resolve()
+                if path.is_file():
+                    return str(path)
+    except PackageNotFoundError:
+        pass
+
+    # 2. Fallback to PATH (development / cargo install)
     binary = shutil.which("syster")
     if binary is not None:
         return binary
 
     raise CliNotFoundError(
-        "Syster CLI not found on PATH. "
+        "Syster CLI not found. "
         "Reinstall with: pip install --force-reinstall systree"
     )
 

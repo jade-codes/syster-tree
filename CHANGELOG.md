@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4a0] - 2026-02-24
+
+### Changed
+
+- `find_cli()` now uses `importlib.metadata` to locate pip-installed binary directly
+- No longer depends on `~/.local/bin` being on PATH
+- PATH lookup kept as fallback for development/cargo-installed binaries
+
 ## [0.4.3a0] - 2026-02-24
 
 Version aligned with syster-cli 0.4.3-alpha.

@@ -1,6 +1,7 @@
 """Tests for the CLI wrapper."""
 
 import json
+from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -50,13 +51,29 @@ class TestSuccessPattern:
 class TestFindCli:
     """Tests for CLI binary discovery."""
 
-    def test_find_cli_on_path(self) -> None:
-        with patch("shutil.which", return_value="/usr/bin/syster"):
+    def test_find_cli_from_package_metadata(self) -> None:
+        """Finds the binary via importlib.metadata (primary path)."""
+        mock_entry = MagicMock()
+        mock_entry.name = "syster"
+        mock_entry.locate.return_value = Path("/usr/local/bin/syster")
+        with patch("systree.cli.files", return_value=[mock_entry]):
+            with patch.object(Path, "is_file", return_value=True):
+                assert find_cli() == "/usr/local/bin/syster"
+
+    def test_find_cli_falls_back_to_path(self) -> None:
+        """Falls back to PATH when package metadata has no binary."""
+        with (
+            patch("systree.cli.files", side_effect=PackageNotFoundError),
+            patch("shutil.which", return_value="/usr/bin/syster"),
+        ):
             assert find_cli() == "/usr/bin/syster"
 
     def test_find_cli_not_found(self) -> None:
-        """Raises CliNotFoundError when binary is not on PATH."""
-        with patch("shutil.which", return_value=None):
+        """Raises CliNotFoundError when binary cannot be found anywhere."""
+        with (
+            patch("systree.cli.files", side_effect=PackageNotFoundError),
+            patch("shutil.which", return_value=None),
+        ):
             with pytest.raises(CliNotFoundError):
                 find_cli()
 
@@ -69,7 +86,10 @@ class TestAnalyze:
             analyze("/nonexistent/path/model.sysml")
 
     def test_cli_not_found(self, sample_sysml_file: Path) -> None:
-        with patch("shutil.which", return_value=None):
+        with (
+            patch("systree.cli.files", side_effect=PackageNotFoundError),
+            patch("shutil.which", return_value=None),
+        ):
             with pytest.raises(CliNotFoundError):
                 analyze(sample_sysml_file)
 

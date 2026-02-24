@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "systree"
-version = "0.4.3a0"
+version = "0.4.4a0"
 description = "Python wrapper for Syster CLI - SysML v2 and KerML analysis"
 readme = "README.md"
 license = "MIT"
