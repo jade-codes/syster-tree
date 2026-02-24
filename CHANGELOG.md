@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3a0] - 2026-02-24
+
+Version aligned with syster-cli 0.4.3-alpha.
+
+### Changed
+
+- `pip install systree` now automatically installs the CLI binary via `syster-cli` PyPI wheel
+- Removed cargo/crates.io fallback — binary comes from PyPI platform wheel
+- Simplified `find_cli()` to just check PATH
+
 ## [0.4.0a2] - 2026-02-24
 
 Version aligned with syster-cli 0.4.0-alpha.
