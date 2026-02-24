@@ -17,10 +17,10 @@ pip install -e ".[dev]"
 
 ### Installing the CLI
 
-Requires syster-cli v0.3.2-alpha or later:
+Requires syster-cli v0.4.0-alpha or later:
 
 ```bash
-cargo install syster-cli --version 0.3.2-alpha
+cargo install syster-cli --version 0.4.0-alpha
 ```
 
 Or via make:

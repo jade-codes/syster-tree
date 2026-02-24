@@ -7,7 +7,9 @@ on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-*'  # Pre-releases like v0.1.0-alpha
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'  # Semver pre-releases like v0.1.0-alpha
+      - 'v[0-9]+.[0-9]+.[0-9]+[ab][0-9]*'  # PEP 440 alpha/beta like v0.3.2a0
+      - 'v[0-9]+.[0-9]+.[0-9]+rc[0-9]*'  # PEP 440 release candidates like v0.3.2rc1
 
 permissions:
   contents: write
