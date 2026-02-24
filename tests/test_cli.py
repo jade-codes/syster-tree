@@ -50,12 +50,40 @@ class TestSuccessPattern:
 class TestFindCli:
     """Tests for CLI binary discovery."""
 
-    def test_find_cli_success(self) -> None:
+    def test_find_cli_on_path(self) -> None:
         with patch("shutil.which", return_value="/usr/bin/syster"):
             assert find_cli() == "/usr/bin/syster"
 
+    def test_find_cli_from_cache(self, tmp_path: Path) -> None:
+        """Falls back to cached binary when not on PATH."""
+        cached_binary = tmp_path / "syster"
+        cached_binary.write_text("#!/bin/sh\n")
+
+        with (
+            patch("shutil.which", return_value=None),
+            patch("systree.cli._cli_cache_path", return_value=cached_binary),
+        ):
+            assert find_cli() == str(cached_binary)
+
+    def test_find_cli_auto_downloads(self, tmp_path: Path) -> None:
+        """Auto-downloads binary when not on PATH and not cached."""
+        downloaded = tmp_path / "syster"
+        downloaded.write_text("#!/bin/sh\n")
+
+        with (
+            patch("shutil.which", return_value=None),
+            patch("systree.cli._cli_cache_path", return_value=tmp_path / "nonexistent"),
+            patch("systree.cli.download_cli", return_value=downloaded),
+        ):
+            assert find_cli() == str(downloaded)
+
     def test_find_cli_not_found(self) -> None:
-        with patch("shutil.which", return_value=None):
+        """Raises CliNotFoundError when all methods fail."""
+        with (
+            patch("shutil.which", return_value=None),
+            patch("systree.cli._cli_cache_path", return_value=Path("/nonexistent")),
+            patch("systree.cli.download_cli", side_effect=RuntimeError("download failed")),
+        ):
             with pytest.raises(CliNotFoundError):
                 find_cli()
 
@@ -68,7 +96,11 @@ class TestAnalyze:
             analyze("/nonexistent/path/model.sysml")
 
     def test_cli_not_found(self, sample_sysml_file: Path) -> None:
-        with patch("shutil.which", return_value=None):
+        with (
+            patch("shutil.which", return_value=None),
+            patch("systree.cli._cli_cache_path", return_value=Path("/nonexistent")),
+            patch("systree.cli.download_cli", side_effect=RuntimeError("download failed")),
+        ):
             with pytest.raises(CliNotFoundError):
                 analyze(sample_sysml_file)
 

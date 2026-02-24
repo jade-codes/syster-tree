@@ -17,10 +17,16 @@ pip install -e ".[dev]"
 
 ### Installing the CLI
 
-Requires syster-cli v0.4.0-alpha or later:
+The CLI binary is **automatically downloaded** on first use — no Rust toolchain required.
+
+To pre-download or install manually:
 
 ```bash
-cargo install syster-cli --version 0.4.0-alpha
+# Pre-download the binary (optional)
+python -c "from systree import download_cli; download_cli()"
+
+# Or install from crates.io (requires Rust)
+cargo install syster-cli
 ```
 
 Or via make:
@@ -141,7 +147,7 @@ from systree import analyze, CliNotFoundError, AnalysisError
 try:
     result = analyze("model.sysml")
 except CliNotFoundError:
-    print("Run: make install-cli")
+    print("CLI auto-download failed. Install manually: cargo install syster-cli")
 except AnalysisError as e:
     print(f"Analysis failed: {e}")
 ```

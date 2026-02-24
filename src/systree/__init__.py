@@ -3,6 +3,7 @@
 from systree.cli import (
     analyze,
     decompile,
+    download_cli,
     download_stdlib,
     export_ast,
     export_jsonld,
@@ -19,7 +20,7 @@ from systree.cli import (
 from systree.exceptions import AnalysisError, CliNotFoundError, SystreeError
 from systree.models import AnalysisResult, FileSymbols, Symbol
 
-__version__ = "0.3.2a0"
+__version__ = "0.4.0a0"
 
 __all__ = [
     # Analysis functions
@@ -38,6 +39,7 @@ __all__ = [
     "decompile",
     # Stdlib
     "download_stdlib",
+    "download_cli",
     "get_stdlib_path",
     "get_cache_dir",
     # Models
