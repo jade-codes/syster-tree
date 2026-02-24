@@ -515,7 +515,7 @@ def export_kpar(
     except OSError as e:
         raise CliNotFoundError(f"Failed to execute syster CLI: {e}") from e
 
-    if result.returncode != 0:
+    if result.returncode not in (0, 2):
         error_message = result.stderr.decode(errors="replace").strip()
         raise AnalysisError(
             f"Export failed with exit code {result.returncode}: {error_message}",
@@ -777,7 +777,7 @@ def import_export(
     except OSError as e:
         raise CliNotFoundError(f"Failed to execute syster CLI: {e}") from e
 
-    if result.returncode != 0:
+    if result.returncode not in (0, 2):
         error_message = result.stderr.decode(errors="replace").strip()
         raise AnalysisError(
             f"Import/export failed with exit code {result.returncode}: {error_message}",
